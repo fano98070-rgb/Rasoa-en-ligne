@@ -3,154 +3,199 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rasoa en Ligne Pro</title>
-    <!-- Moteurs React et Babel -->
+    <title>Rasoa en Ligne Pro - Gestion Simplifiée</title>
+    <!-- Moteurs React, Babel et Firebase -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Lucide Icons -->
     <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <!-- Firebase SDK -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
+        import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, query } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
+
+        window.fb = { initializeApp, getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, query };
+    </script>
+
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
         body { font-family: 'Plus Jakarta Sans', sans-serif; }
-        .custom-shadow { shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05); }
+        .hide-scrollbar::-webkit-scrollbar { display: none; }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-900">
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect } = React;
+        const { useState, useEffect, useMemo } = React;
 
-        // Composant Icône (SVG Lucide)
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'rasoa-pro-app';
+
         const Icon = ({ name, size = 20, className = "" }) => {
-            useEffect(() => {
-                if (window.lucide) window.lucide.createIcons();
-            }, [name]);
+            useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, [name]);
             return <i data-lucide={name} className={className} style={{ width: size, height: size }}></i>;
         };
 
         function App() {
+            const [user, setUser] = useState(null);
+            const [db, setDb] = useState(null);
             const [isAdmin, setIsAdmin] = useState(false);
             const [password, setPassword] = useState("");
             const [activeTab, setActiveTab] = useState("commandes");
             
-            // États des données
-            const [clients, setClients] = useState([
-                { nom: "Client Exemple", telephone: "0340000000", zone: "Centre-ville", lieu: "Lot IVG 42" }
-            ]);
+            const [clients, setClients] = useState([]);
             const [livraisons, setLivraisons] = useState([]);
+            const [depenses, setDepenses] = useState([]);
+            const [versements, setVersements] = useState([]);
 
-            // États des formulaires
-            const [orderForm, setOrderForm] = useState({
-                nom: "", telephone: "", montant: "", zone: "Centre-ville", lieu: "", type: "Produit"
-            });
+            const [searchTerm, setSearchTerm] = useState("");
+            const [orderForm, setOrderForm] = useState({ nom: "", telephone: "", montant: "", lieu: "", type: "Produit" });
             const [clientForm, setClientForm] = useState({ nom: "", telephone: "", lieu: "" });
+            const [depenseForm, setDepenseForm] = useState({ motif: "", montant: "" });
+            const [versementForm, setVersementForm] = useState({ montant: "" });
 
-            const zones = { "Centre-ville": 3000, "Périphérie": 4000, "Hors ville": 6000 };
+            useEffect(() => {
+                const { initializeApp, getFirestore, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } = window.fb;
+                const app = initializeApp(firebaseConfig);
+                const auth = getAuth(app);
+                const firestore = getFirestore(app);
+                setDb(firestore);
+
+                const initAuth = async () => {
+                    try {
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await signInWithCustomToken(auth, __initial_auth_token);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    } catch (e) { console.error(e); }
+                };
+                initAuth();
+                const unsubscribe = onAuthStateChanged(auth, setUser);
+                return () => unsubscribe();
+            }, []);
+
+            useEffect(() => {
+                if (!db || !user) return;
+                const { collection, onSnapshot } = window.fb;
+                const unsubLiv = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'livraisons'), (s) => setLivraisons(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+                const unsubCli = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'clients'), (s) => setClients(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+                const unsubDep = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'depenses'), (s) => setDepenses(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+                const unsubVer = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'versements'), (s) => setVersements(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+                return () => { unsubLiv(); unsubCli(); unsubDep(); unsubVer(); };
+            }, [db, user]);
+
+            const stats = useMemo(() => {
+                const totalLivre = livraisons.filter(l => l.statut === "Livré").reduce((acc, curr) => acc + (curr.montant || 0), 0);
+                const totalVersements = versements.reduce((acc, curr) => acc + curr.montant, 0);
+                const totalDepenses = depenses.reduce((acc, curr) => acc + curr.montant, 0);
+                return { totalLivre, totalVersements, totalDepenses, beneficePerte: totalVersements - totalDepenses };
+            }, [livraisons, versements, depenses]);
+
+            const filteredClients = useMemo(() => {
+                if (!searchTerm) return [];
+                return clients.filter(c => 
+                    c.nom.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                    c.telephone.includes(searchTerm)
+                );
+            }, [searchTerm, clients]);
+
+            const selectClient = (c) => {
+                setOrderForm({ ...orderForm, nom: c.nom, telephone: c.telephone, lieu: c.lieu || "" });
+                setSearchTerm("");
+            };
 
             const handleLogin = () => {
                 if (password === "rasoa123") setIsAdmin(true);
                 else alert("Mot de passe incorrect");
             };
 
-            const addOrder = () => {
-                const { nom, telephone, montant, zone, lieu, type } = orderForm;
-                if (!nom || !montant || !telephone || !lieu) return alert("Veuillez remplir tous les champs !");
-                
-                const frais = zones[zone];
-                const newOrder = {
-                    id: Date.now(),
-                    client: nom,
-                    telephone,
-                    montant: Number(montant),
-                    frais,
-                    total: Number(montant) + frais,
-                    zone,
-                    lieu,
-                    type,
-                    statut: "Préparation",
-                    date: new Date().toLocaleDateString('fr-FR')
+            const addOrder = async () => {
+                if (!orderForm.nom || !orderForm.montant) return alert("Nom et Montant requis !");
+                const newOrder = { 
+                    ...orderForm, 
+                    montant: Number(orderForm.montant), 
+                    statut: "Préparation", 
+                    timestamp: Date.now(), 
+                    date: new Date().toLocaleDateString('fr-FR') 
                 };
-
-                // Auto-ajout au répertoire client
-                if (!clients.find(c => c.telephone === telephone)) {
-                    setClients(prev => [...prev, { nom, telephone, zone, lieu }]);
-                }
-
-                setLivraisons(prev => [newOrder, ...prev]);
-                setOrderForm({ nom: "", telephone: "", montant: "", zone: "Centre-ville", lieu: "", type: "Produit" });
-                setActiveTab("livraisons");
+                try {
+                    const { collection, addDoc } = window.fb;
+                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'livraisons'), newOrder);
+                    setOrderForm({ nom: "", telephone: "", montant: "", lieu: "", type: "Produit" });
+                    setActiveTab("livraisons");
+                } catch (e) { alert(e.message); }
             };
 
-            const addClient = () => {
-                if (!clientForm.nom || !clientForm.telephone || !clientForm.lieu) return alert("Infos incomplètes");
-                setClients(prev => [...prev, { ...clientForm, zone: "Centre-ville" }]);
-                setClientForm({ nom: "", telephone: "", lieu: "" });
-                alert("Client ajouté !");
+            const addNewClient = async () => {
+                if (!clientForm.nom || !clientForm.telephone) return alert("Nom et Téléphone requis !");
+                try {
+                    const { collection, addDoc } = window.fb;
+                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'clients'), clientForm);
+                    setClientForm({ nom: "", telephone: "", lieu: "" });
+                    alert("Client enregistré !");
+                } catch (e) { console.error(e); }
             };
 
-            const nextStatus = (id) => {
-                setLivraisons(prev => prev.map(l => {
-                    if (l.id === id) {
-                        if (l.statut === "Préparation") return { ...l, statut: "Livraison" };
-                        if (l.statut === "Livraison") return { ...l, statut: "Livré" };
+            const addFinances = async (type) => {
+                const { collection, addDoc } = window.fb;
+                try {
+                    if (type === 'depense') {
+                        if (!depenseForm.motif || !depenseForm.montant) return;
+                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'depenses'), { ...depenseForm, montant: Number(depenseForm.montant), timestamp: Date.now(), date: new Date().toLocaleDateString('fr-FR') });
+                        setDepenseForm({ motif: "", montant: "" });
+                    } else {
+                        if (!versementForm.montant) return;
+                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'versements'), { montant: Number(versementForm.montant), timestamp: Date.now(), date: new Date().toLocaleDateString('fr-FR') });
+                        setVersementForm({ montant: "" });
                     }
-                    return l;
-                }));
+                } catch (e) { console.error(e); }
+            };
+
+            const deleteItem = async (col, id) => {
+                const { doc, deleteDoc } = window.fb;
+                if (confirm("Supprimer ?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id));
+            };
+
+            const nextStatus = async (id, currentStatus) => {
+                const { doc, updateDoc } = window.fb;
+                let newStatus = currentStatus === "Préparation" ? "Livraison" : "Livré";
+                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', id), { statut: newStatus });
             };
 
             if (!isAdmin) {
                 return (
-                    <div className="flex items-center justify-center min-h-screen p-4">
-                        <div className="bg-white p-8 rounded-[2.5rem] shadow-2xl w-full max-w-sm text-center border border-slate-100">
-                            <div className="w-20 h-20 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center mx-auto mb-6">
-                                <Icon name="lock" size={32} />
-                            </div>
-                            <h1 className="text-2xl font-black mb-2 uppercase tracking-tighter">Rasoa Pro</h1>
-                            <p className="text-slate-400 text-sm mb-8">Espace de gestion réservé</p>
-                            <input 
-                                type="password" 
-                                placeholder="Mot de passe" 
-                                className="w-full p-4 bg-slate-50 border border-slate-100 rounded-2xl mb-4 text-center outline-none focus:ring-2 focus:ring-indigo-500 font-bold"
-                                value={password}
-                                onChange={e => setPassword(e.target.value)}
-                            />
-                            <button onClick={handleLogin} className="w-full bg-indigo-600 text-white font-bold py-4 rounded-2xl shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all">
-                                Connexion
-                            </button>
+                    <div className="flex items-center justify-center min-h-screen p-4 bg-slate-900">
+                        <div className="bg-white p-8 rounded-[2.5rem] w-full max-w-sm text-center">
+                            <Icon name="lock" size={40} className="mx-auto mb-4 text-indigo-600" />
+                            <h1 className="text-2xl font-black mb-6 uppercase">Rasoa Pro</h1>
+                            <input type="password" placeholder="Mot de passe" className="w-full p-4 bg-slate-50 border rounded-2xl mb-4 text-center font-bold" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleLogin()} />
+                            <button onClick={handleLogin} className="w-full bg-indigo-600 text-white font-bold py-4 rounded-2xl">Connexion</button>
                         </div>
                     </div>
                 );
             }
 
             return (
-                <div className="min-h-screen flex flex-col">
-                    {/* Navigation */}
+                <div className="min-h-screen flex flex-col pb-10">
                     <nav className="bg-white border-b px-6 h-16 flex items-center justify-between sticky top-0 z-50">
-                        <div className="flex items-center gap-2">
-                            <div className="bg-indigo-600 p-2 rounded-lg text-white"><Icon name="shopping-cart" /></div>
-                            <span className="font-black text-xl tracking-tighter uppercase">Rasoa Pro</span>
-                        </div>
-                        <button onClick={() => setIsAdmin(false)} className="text-slate-400 hover:text-red-500 font-bold text-sm flex items-center gap-1">
-                            <Icon name="log-out" size={16} /> Quitter
-                        </button>
+                        <div className="flex items-center gap-2 font-black text-xl tracking-tighter uppercase text-indigo-600"><Icon name="zap"/> Rasoa Pro</div>
+                        <button onClick={() => setIsAdmin(false)} className="text-slate-400 font-bold text-sm flex items-center gap-1"><Icon name="log-out" size={16} /> Quitter</button>
                     </nav>
 
-                    {/* Onglets Menu */}
-                    <div className="bg-white border-b overflow-x-auto">
+                    <div className="bg-white border-b overflow-x-auto sticky top-16 z-40 hide-scrollbar">
                         <div className="max-w-5xl mx-auto px-4 flex">
                             {[
-                                { id: 'commandes', label: 'Nouvelle Vente', icon: 'plus-circle' },
-                                { id: 'livraisons', label: 'Suivi Livraisons', icon: 'truck' },
-                                { id: 'clients', label: 'Répertoire Clients', icon: 'users' }
+                                { id: 'commandes', label: 'Vente', icon: 'shopping-bag' },
+                                { id: 'livraisons', label: 'Livraisons', icon: 'truck' },
+                                { id: 'finances', label: 'Finances', icon: 'wallet' },
+                                { id: 'clients', label: 'Clients', icon: 'users' }
                             ].map(t => (
-                                <button 
-                                    key={t.id}
-                                    onClick={() => setActiveTab(t.id)}
-                                    className={`px-6 py-4 flex items-center gap-2 border-b-2 font-bold text-sm whitespace-nowrap transition-all ${activeTab === t.id ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-400'}`}
-                                >
+                                <button key={t.id} onClick={() => setActiveTab(t.id)} className={`px-6 py-4 flex items-center gap-2 border-b-2 font-bold text-sm whitespace-nowrap ${activeTab === t.id ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-400'}`}>
                                     <Icon name={t.icon} size={16} /> {t.label}
                                 </button>
                             ))}
@@ -158,106 +203,186 @@
                     </div>
 
                     <main className="max-w-5xl mx-auto w-full p-6">
-                        {/* ONGLET COMMANDES */}
                         {activeTab === 'commandes' && (
-                            <div className="max-w-2xl mx-auto bg-white rounded-[2rem] p-8 shadow-sm border border-slate-100 space-y-6">
-                                <h2 className="text-xl font-black uppercase text-center flex items-center justify-center gap-2">
-                                    <Icon name="plus" className="text-indigo-600" /> Créer une commande
-                                </h2>
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                    <input value={orderForm.nom} onChange={e => setOrderForm({...orderForm, nom: e.target.value})} placeholder="Nom du client" className="w-full p-4 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-indigo-500" />
-                                    <input value={orderForm.telephone} onChange={e => setOrderForm({...orderForm, telephone: e.target.value})} placeholder="Téléphone" className="w-full p-4 bg-slate-50 rounded-2xl border-none outline-none font-mono" />
+                            <div className="max-w-2xl mx-auto bg-white rounded-[2.5rem] p-8 shadow-sm border space-y-6">
+                                <h2 className="text-xl font-black uppercase text-center">Nouvelle Vente</h2>
+                                
+                                <div className="relative">
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-2">Rechercher un client enregistré</label>
+                                    <div className="relative">
+                                        <Icon name="search" size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" />
+                                        <input 
+                                            value={searchTerm} 
+                                            onChange={e => setSearchTerm(e.target.value)} 
+                                            placeholder="Nom ou téléphone..." 
+                                            className="w-full p-4 pl-12 bg-indigo-50/50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-indigo-500"
+                                        />
+                                    </div>
+                                    {filteredClients.length > 0 && (
+                                        <div className="absolute z-10 w-full mt-2 bg-white border rounded-2xl shadow-xl max-h-48 overflow-y-auto">
+                                            {filteredClients.map(c => (
+                                                <div key={c.id} onClick={() => selectClient(c)} className="p-4 hover:bg-indigo-50 cursor-pointer border-b last:border-none flex justify-between items-center">
+                                                    <div>
+                                                        <div className="font-bold text-sm">{c.nom}</div>
+                                                        <div className="text-xs text-slate-400">{c.telephone}</div>
+                                                    </div>
+                                                    <Icon name="plus" size={14} className="text-indigo-400"/>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
-                                <div className="space-y-1">
-                                    <label className="text-[10px] font-bold text-indigo-500 uppercase ml-2 flex items-center gap-1"><Icon name="map-pin" size={10} /> Lieu de livraison exact</label>
-                                    <input value={orderForm.lieu} onChange={e => setOrderForm({...orderForm, lieu: e.target.value})} placeholder="Quartier, Lot, Immeuble..." className="w-full p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100 outline-none" />
+
+                                <div className="grid grid-cols-2 gap-4 pt-4 border-t">
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-2">Nom Client</label>
+                                        <input value={orderForm.nom} onChange={e => setOrderForm({...orderForm, nom: e.target.value})} placeholder="Nom" className="w-full p-4 bg-slate-50 rounded-2xl border-none" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-2">Contact</label>
+                                        <input value={orderForm.telephone} onChange={e => setOrderForm({...orderForm, telephone: e.target.value})} placeholder="Téléphone" className="w-full p-4 bg-slate-50 rounded-2xl border-none font-mono" />
+                                    </div>
                                 </div>
+                                <input value={orderForm.lieu} onChange={e => setOrderForm({...orderForm, lieu: e.target.value})} placeholder="Adresse de livraison..." className="w-full p-4 bg-slate-50 rounded-2xl border-none" />
                                 <div className="grid grid-cols-2 gap-4">
-                                    <input type="number" value={orderForm.montant} onChange={e => setOrderForm({...orderForm, montant: e.target.value})} placeholder="Montant Ar" className="p-4 bg-slate-50 rounded-2xl border-none font-bold" />
-                                    <select value={orderForm.type} onChange={e => setOrderForm({...orderForm, type: e.target.value})} className="p-4 bg-slate-50 rounded-2xl border-none">
-                                        <option value="Produit">Produit</option>
-                                        <option value="Colis">Colis</option>
-                                    </select>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-2">Prix Article (Ar)</label>
+                                        <input type="number" value={orderForm.montant} onChange={e => setOrderForm({...orderForm, montant: e.target.value})} placeholder="0" className="w-full p-4 bg-slate-50 rounded-2xl border-none font-black text-indigo-600" />
+                                    </div>
+                                    <div className="space-y-1">
+                                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-2">Type</label>
+                                        <select value={orderForm.type} onChange={e => setOrderForm({...orderForm, type: e.target.value})} className="w-full p-4 bg-slate-50 rounded-2xl border-none font-bold">
+                                            <option value="Produit">Produit</option><option value="Colis">Colis</option>
+                                        </select>
+                                    </div>
                                 </div>
-                                <select value={orderForm.zone} onChange={e => setOrderForm({...orderForm, zone: e.target.value})} className="w-full p-4 bg-slate-50 rounded-2xl border-none">
-                                    {Object.keys(zones).map(z => <option key={z} value={z}>{z} (+{zones[z]} Ar)</option>)}
-                                </select>
-                                <div className="bg-slate-900 text-white p-5 rounded-2xl flex justify-between items-center font-bold">
-                                    <span className="text-xs uppercase opacity-50">Total Final</span>
-                                    <span className="text-xl">{(Number(orderForm.montant) + zones[orderForm.zone]).toLocaleString()} Ar</span>
-                                </div>
-                                <button onClick={addOrder} className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black uppercase tracking-widest shadow-xl shadow-indigo-100">Valider la vente</button>
+                                <button onClick={addOrder} className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black uppercase shadow-lg shadow-indigo-100 transition-transform active:scale-95">Valider la vente</button>
                             </div>
                         )}
 
-                        {/* ONGLET LIVRAISONS */}
+                        {activeTab === 'finances' && (
+                            <div className="space-y-8">
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                    <div className="bg-white p-6 rounded-3xl border shadow-sm">
+                                        <div className="text-[10px] font-black uppercase text-slate-400 mb-1">Total Articles Livrés</div>
+                                        <div className="text-xl font-black">{stats.totalLivre.toLocaleString()} Ar</div>
+                                    </div>
+                                    <div className="bg-green-50 p-6 rounded-3xl border border-green-100">
+                                        <div className="text-[10px] font-black uppercase text-green-600 mb-1">Versements Reçus</div>
+                                        <div className="text-xl font-black text-green-700">{stats.totalVersements.toLocaleString()} Ar</div>
+                                    </div>
+                                    <div className="bg-red-50 p-6 rounded-3xl border border-red-100">
+                                        <div className="text-[10px] font-black uppercase text-red-600 mb-1">Dépenses</div>
+                                        <div className="text-xl font-black text-red-700">{stats.totalDepenses.toLocaleString()} Ar</div>
+                                    </div>
+                                    <div className={`${stats.beneficePerte >= 0 ? 'bg-indigo-600 text-white' : 'bg-rose-600 text-white'} p-6 rounded-3xl shadow-lg`}>
+                                        <div className="text-[10px] font-black uppercase opacity-70 mb-1">Bénéfice Net</div>
+                                        <div className="text-xl font-black">{stats.beneficePerte.toLocaleString()} Ar</div>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                                    <div className="bg-white rounded-3xl border p-6 space-y-4">
+                                        <h3 className="font-black uppercase text-sm flex items-center gap-2 text-green-600"><Icon name="arrow-down-circle" size={16} /> Versement</h3>
+                                        <div className="flex gap-2">
+                                            <input type="number" placeholder="Montant" className="flex-1 p-3 bg-slate-50 rounded-xl font-bold" value={versementForm.montant} onChange={e => setVersementForm({montant: e.target.value})} />
+                                            <button onClick={() => addFinances('versement')} className="bg-green-600 text-white px-4 rounded-xl"><Icon name="plus" /></button>
+                                        </div>
+                                        <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
+                                            {versements.map(v => (
+                                                <div key={v.id} className="flex justify-between items-center p-3 bg-slate-50 rounded-xl text-sm italic">
+                                                    <span>{v.date}</span>
+                                                    <div className="flex items-center gap-4">
+                                                        <span className="font-black text-green-600">{v.montant.toLocaleString()} Ar</span>
+                                                        <button onClick={() => deleteItem('versements', v.id)} className="text-slate-300 hover:text-red-500"><Icon name="x" size={14}/></button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+
+                                    <div className="bg-white rounded-3xl border p-6 space-y-4">
+                                        <h3 className="font-black uppercase text-sm flex items-center gap-2 text-red-600"><Icon name="arrow-up-circle" size={16} /> Dépense</h3>
+                                        <input placeholder="Motif..." className="w-full p-3 bg-slate-50 rounded-xl text-sm" value={depenseForm.motif} onChange={e => setDepenseForm({...depenseForm, motif: e.target.value})} />
+                                        <div className="flex gap-2">
+                                            <input type="number" placeholder="Montant" className="flex-1 p-3 bg-slate-50 rounded-xl font-bold" value={depenseForm.montant} onChange={e => setDepenseForm({...depenseForm, montant: e.target.value})} />
+                                            <button onClick={() => addFinances('depense')} className="bg-red-600 text-white px-4 rounded-xl"><Icon name="plus" /></button>
+                                        </div>
+                                        <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
+                                            {depenses.map(d => (
+                                                <div key={d.id} className="flex justify-between items-center p-3 bg-slate-50 rounded-xl text-sm">
+                                                    <div><div className="font-bold">{d.motif}</div><div className="text-[10px] text-slate-400">{d.date}</div></div>
+                                                    <div className="flex items-center gap-4">
+                                                        <span className="font-black text-red-500">{d.montant.toLocaleString()} Ar</span>
+                                                        <button onClick={() => deleteItem('depenses', d.id)} className="text-slate-300 hover:text-red-500"><Icon name="x" size={14}/></button>
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
                         {activeTab === 'livraisons' && (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {livraisons.length === 0 ? (
-                                    <div className="col-span-full py-20 text-center text-slate-400 italic font-medium">Aucune livraison en attente</div>
-                                ) : (
-                                    livraisons.map(l => (
-                                        <div key={l.id} className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden flex flex-col">
-                                            <div className={`py-2 text-[10px] font-black uppercase text-center border-b ${l.statut === 'Livré' ? 'bg-green-100 text-green-700' : l.statut === 'Livraison' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
-                                                {l.statut}
+                                {livraisons.map(l => (
+                                    <div key={l.id} className="bg-white rounded-[2rem] border shadow-sm overflow-hidden flex flex-col relative">
+                                        <div className={`py-2 text-[10px] font-black uppercase text-center border-b ${l.statut === 'Livré' ? 'bg-green-100 text-green-700' : l.statut === 'Livraison' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
+                                            {l.statut}
+                                        </div>
+                                        <div className="p-6 space-y-4 flex-1">
+                                            <div className="flex justify-between items-start">
+                                                <h3 className="font-black text-slate-900 text-lg">{l.client}</h3>
+                                                <button onClick={() => deleteItem('livraisons', l.id)} className="text-slate-200 hover:text-red-500"><Icon name="trash-2" size={14}/></button>
                                             </div>
-                                            <div className="p-6 space-y-4 flex-1">
-                                                <div className="flex justify-between items-start">
-                                                    <h3 className="font-black text-slate-900 text-lg leading-tight">{l.client}</h3>
-                                                    <span className="text-[9px] px-2 py-1 bg-slate-100 rounded-md font-bold uppercase">{l.type}</span>
+                                            <div className="space-y-2 text-xs">
+                                                <p className="text-slate-500 flex items-start gap-1"><Icon name="map-pin" size={12} className="shrink-0"/> {l.lieu || "Non précisé"}</p>
+                                                <div className="font-mono text-slate-400 bg-slate-50 p-2 rounded-lg">{l.telephone}</div>
+                                            </div>
+                                            <div className="pt-4 border-t flex justify-between items-end mt-auto">
+                                                <div className="flex flex-col">
+                                                    <span className="text-[8px] text-slate-400 uppercase font-bold">Prix Article</span>
+                                                    <span className="text-slate-900 text-xl font-black">{l.montant.toLocaleString()} Ar</span>
                                                 </div>
-                                                <div className="space-y-2">
-                                                    <div className="text-xs font-bold text-indigo-600 flex items-center gap-1 uppercase tracking-tight"><Icon name="map-pin" size={10} /> {l.zone}</div>
-                                                    <p className="text-xs text-slate-500 font-medium leading-relaxed">{l.lieu}</p>
-                                                    <div className="text-xs font-mono text-slate-400 bg-slate-50 p-2 rounded-lg">{l.telephone}</div>
-                                                </div>
-                                                <div className="pt-4 border-t flex justify-between items-center mt-auto">
-                                                    <div className="flex flex-col">
-                                                        <span className="text-[8px] font-bold text-slate-400 uppercase">Total Ar</span>
-                                                        <span className="font-black text-slate-900 text-xl tracking-tighter">{l.total.toLocaleString()}</span>
-                                                    </div>
-                                                    {l.statut !== "Livré" && (
-                                                        <button onClick={() => nextStatus(l.id)} className="bg-slate-900 text-white p-3 rounded-2xl hover:bg-indigo-600 transition-all">
-                                                            <Icon name="chevron-right" />
-                                                        </button>
-                                                    )}
-                                                </div>
+                                                {l.statut !== "Livré" && (
+                                                    <button onClick={() => nextStatus(l.id, l.statut)} className="bg-slate-900 text-white p-3 rounded-2xl shadow-lg">
+                                                        <Icon name="chevron-right" />
+                                                    </button>
+                                                )}
                                             </div>
                                         </div>
-                                    ))
-                                )}
+                                    </div>
+                                ))}
                             </div>
                         )}
 
-                        {/* ONGLET CLIENTS */}
                         {activeTab === 'clients' && (
-                            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                                <div className="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-sm h-fit space-y-4">
-                                    <h2 className="font-black uppercase text-sm flex items-center gap-2">
-                                        <Icon name="user-plus" size={16} className="text-indigo-600" /> Nouveau Client
-                                    </h2>
-                                    <input value={clientForm.nom} onChange={e => setClientForm({...clientForm, nom: e.target.value})} placeholder="Nom complet" className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm" />
-                                    <input value={clientForm.telephone} onChange={e => setClientForm({...clientForm, telephone: e.target.value})} placeholder="Téléphone" className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm font-mono" />
-                                    <textarea value={clientForm.lieu} onChange={e => setClientForm({...clientForm, lieu: e.target.value})} placeholder="Lieu/Adresse par défaut" className="w-full bg-slate-50 border border-slate-100 rounded-xl px-4 py-3 text-sm h-24 resize-none" />
-                                    <button onClick={addClient} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold shadow-md hover:bg-indigo-700 transition-all">
-                                        Enregistrer
-                                    </button>
+                            <div className="space-y-6">
+                                <div className="bg-white rounded-[2rem] p-8 border shadow-sm max-w-xl mx-auto">
+                                    <h3 className="font-black uppercase mb-6 flex items-center gap-2"><Icon name="user-plus" /> Nouveau Client</h3>
+                                    <div className="space-y-4">
+                                        <input value={clientForm.nom} onChange={e => setClientForm({...clientForm, nom: e.target.value})} placeholder="Nom complet" className="w-full p-4 bg-slate-50 rounded-2xl border-none" />
+                                        <input value={clientForm.telephone} onChange={e => setClientForm({...clientForm, telephone: e.target.value})} placeholder="Téléphone" className="w-full p-4 bg-slate-50 rounded-2xl border-none font-mono" />
+                                        <input value={clientForm.lieu} onChange={e => setClientForm({...clientForm, lieu: e.target.value})} placeholder="Adresse par défaut (Optionnel)" className="w-full p-4 bg-slate-50 rounded-2xl border-none" />
+                                        <button onClick={addNewClient} className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase">Enregistrer Client</button>
+                                    </div>
                                 </div>
-                                <div className="lg:col-span-2 bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
+
+                                <div className="bg-white rounded-[2rem] border shadow-sm overflow-hidden">
                                     <table className="w-full text-left text-sm">
-                                        <thead className="bg-slate-50 border-b text-[10px] uppercase text-slate-400 font-bold tracking-widest">
-                                            <tr>
-                                                <th className="px-6 py-4">Nom Client</th>
-                                                <th className="px-6 py-4">Téléphone</th>
-                                                <th className="px-6 py-4">Lieu Habituel</th>
-                                            </tr>
+                                        <thead className="bg-slate-50 border-b text-[10px] uppercase text-slate-400 font-black">
+                                            <tr><th className="px-6 py-4">Nom</th><th className="px-6 py-4">Contact</th><th className="px-6 py-4">Lieu Habituel</th><th className="px-6 py-4"></th></tr>
                                         </thead>
                                         <tbody className="divide-y divide-slate-50">
-                                            {clients.map((c, i) => (
-                                                <tr key={i} className="hover:bg-indigo-50/30 transition-colors">
-                                                    <td className="px-6 py-4 font-bold text-slate-800">{c.nom}</td>
-                                                    <td className="px-6 py-4 text-slate-500 font-mono">{c.telephone}</td>
-                                                    <td className="px-6 py-4 text-xs text-slate-400">{c.lieu}</td>
+                                            {clients.map(c => (
+                                                <tr key={c.id} className="hover:bg-slate-50">
+                                                    <td className="px-6 py-4 font-bold">{c.nom}</td>
+                                                    <td className="px-6 py-4 font-mono text-slate-500">{c.telephone}</td>
+                                                    <td className="px-6 py-4 text-slate-400 text-xs">{c.lieu || "-"}</td>
+                                                    <td className="px-6 py-4 text-right">
+                                                        <button onClick={() => deleteItem('clients', c.id)} className="text-slate-300 hover:text-red-500"><Icon name="trash-2" size={14}/></button>
+                                                    </td>
                                                 </tr>
                                             ))}
                                         </tbody>
