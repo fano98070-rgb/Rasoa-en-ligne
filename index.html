@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Rasoa en Ligne - Cloud Sync Fix</title>
+    
+    <meta name="theme-color" content="#db2777">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    
+    <!-- React & Tailwind -->
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        body { 
+            font-family: 'Inter', sans-serif; 
+            -webkit-tap-highlight-color: transparent;
+            background-color: #f8fafc;
+            margin: 0;
+            overflow-x: hidden;
+        }
+        ::-webkit-scrollbar { display: none; }
+        .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
+        .fade-in { animation: fadeIn 0.4s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .loader {
+            border: 3px solid #f3f3f3;
+            border-top: 3px solid #db2777;
+            border-radius: 50%;
+            width: 24px;
+            height: 24px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+    </style>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.2.0/firebase-app.js";
+        import { getAuth, onAuthStateChanged, signInAnonymously, signInWithCustomToken, signOut } from "https://www.gstatic.com/firebasejs/11.2.0/firebase-auth.js";
+        import { getFirestore, doc, setDoc, updateDoc, deleteDoc, onSnapshot, collection, query } from "https://www.gstatic.com/firebasejs/11.2.0/firebase-firestore.js";
+
+        const firebaseConfig = window.__firebase_config ? JSON.parse(window.__firebase_config) : {
+            apiKey: "", 
+            authDomain: "rasoa-app.firebaseapp.com",
+            projectId: "rasoa-app",
+            storageBucket: "rasoa-app.appspot.com"
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        window.FB = { auth, db, signInAnonymously, signInWithCustomToken, signOut, onAuthStateChanged, collection, query, onSnapshot, doc, setDoc, updateDoc, deleteDoc };
+    </script>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+
+        const Icons = {
+            Zap: () => <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>,
+            Plus: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>,
+            Home: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>,
+            Truck: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>,
+            Users: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>,
+            Settings: () => <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>,
+            Trash: () => <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/></svg>,
+            Lock: () => <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        };
+
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'rasoa-pro-v4';
+
+        function App() {
+            const [user, setUser] = useState(null);
+            const [activeTab, setActiveTab] = useState('shop'); 
+            const [clients, setClients] = useState([]);
+            const [products, setProducts] = useState([]);
+            const [deliveries, setDeliveries] = useState([]);
+            const [authLoading, setAuthLoading] = useState(true);
+
+            const [newClient, setNewClient] = useState({ nom: '', contact: '', adresse: '' });
+            const [newProduct, setNewProduct] = useState({ name: '', img: '' });
+            const [newDelivery, setNewDelivery] = useState({ clientName: '', article: '', status: 'Attente', date: new Date().toLocaleDateString('fr-FR') });
+            
+            const fileInputRef = useRef(null);
+
+            // 1. Initialiser l'Auth (CRITIQUE)
+            useEffect(() => {
+                if (!window.FB) return;
+                
+                const initAuth = async () => {
+                    try {
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await window.FB.signInWithCustomToken(window.FB.auth, __initial_auth_token);
+                        } else {
+                            await window.FB.signInAnonymously(window.FB.auth);
+                        }
+                    } catch (e) {
+                        console.error("Auth Init Error:", e);
+                    } finally {
+                        setAuthLoading(false);
+                    }
+                };
+
+                initAuth();
+                const unsub = window.FB.onAuthStateChanged(window.FB.auth, (u) => setUser(u));
+                return () => unsub();
+            }, []);
+
+            // 2. Fetch Firestore data uniquement SI user est présent
+            useEffect(() => {
+                if (!window.FB || !user) return;
+                
+                // On utilise les chemins requis: /artifacts/{appId}/public/data/{collection}
+                const unsubP = window.FB.onSnapshot(
+                    window.FB.collection(window.FB.db, 'artifacts', appId, 'public', 'data', 'products'),
+                    (s) => setProducts(s.docs.map(d => ({...d.data(), firebaseId: d.id}))),
+                    (e) => console.error("Firestore Products error:", e)
+                );
+                
+                const unsubC = window.FB.onSnapshot(
+                    window.FB.collection(window.FB.db, 'artifacts', appId, 'public', 'data', 'clients'),
+                    (s) => setClients(s.docs.map(d => ({...d.data(), firebaseId: d.id}))),
+                    (e) => console.error("Firestore Clients error:", e)
+                );
+
+                const unsubD = window.FB.onSnapshot(
+                    window.FB.collection(window.FB.db, 'artifacts', appId, 'public', 'data', 'deliveries'),
+                    (s) => setDeliveries(s.docs.map(d => ({...d.data(), firebaseId: d.id}))),
+                    (e) => console.error("Firestore Deliveries error:", e)
+                );
+
+                return () => { unsubP(); unsubC(); unsubD(); };
+            }, [user]);
+
+            const handleLogout = async () => {
+                await window.FB.signOut(window.FB.auth);
+            };
+
+            const handleImageChange = (e) => {
+                const file = e.target.files[0];
+                if (file) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => setNewProduct(prev => ({ ...prev, img: reader.result }));
+                    reader.readAsDataURL(file);
+                }
+            };
+
+            const addProduct = async (e) => {
+                e.preventDefault();
+                if (!user || !newProduct.name || !newProduct.img) return;
+                const id = Date.now().toString();
+                await window.FB.setDoc(window.FB.doc(window.FB.db, 'artifacts', appId, 'public', 'data', 'products', id), { ...newProduct, id });
+                setNewProduct({ name: '', img: '' });
+            };
+
+            const addDelivery = async (e) => {
+                e.preventDefault();
+                if (!user || !newDelivery.clientName) return;
+                const id = Date.now().toString();
+                await window.FB.setDoc(window.FB.doc(window.FB.db, 'artifacts', appId, 'public', 'data', 'deliveries', id), { ...newDelivery, id });
+                setNewDelivery({ clientName: '', article: '', status: 'Attente', date: new Date().toLocaleDateString('fr-FR') });
+            };
+
+            const addClient = async (e) => {
+                e.preventDefault();
+                if (!user || !newClient.nom) return;
+                const id = Date.now().toString();
+                await window.FB.setDoc(window.FB.doc(window.FB.db, 'artifacts', appId, 'public', 'data', 'clients', id), { ...newClient, id });
+                setNewClient({ nom: '', contact: '', adresse: '' });
+            };
+
+            const updateStatus = async (id, status) => {
+                if (!user) return;
+                await window.FB.updateDoc(window.FB.doc(window.FB.db, 'artifacts', appId, 'public', 'data', 'deliveries', id), { status });
+            };
+
+            const removeItem = async (collectionName, id) => {
+                if (!user || !window.confirm("Confirmer la suppression ?")) return;
+                await window.FB.deleteDoc(window.FB.doc(window.FB.db, 'artifacts', appId, 'public', 'data', collectionName, id));
+            };
+
+            if (authLoading) {
+                return (
+                    <div className="h-screen flex items-center justify-center bg-white">
+                        <div className="loader"></div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="min-h-screen flex flex-col pb-24 bg-[#f8fafc] fade-in">
+                    <nav className="bg-white border-b sticky top-0 z-50 px-6 h-16 flex items-center justify-between shadow-sm">
+                        <div className="flex items-center gap-2">
+                            <div className="bg-pink-600 p-1.5 rounded-xl text-white shadow-md"><Icons.Zap /></div>
+                            <span className="font-black text-sm uppercase tracking-tighter">Rasoa <span className="text-pink-600">Online</span></span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            <div className="text-[10px] font-bold text-slate-400 uppercase tracking-widest bg-slate-50 px-3 py-1 rounded-full">Cloud Sync</div>
+                        </div>
+                    </nav>
+
+                    <main className="p-4 max-w-lg mx-auto w-full flex-1">
+                        
+                        {activeTab === 'shop' && (
+                            <div className="space-y-6">
+                                <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100">
+                                    <h3 className="text-xs font-black text-pink-600 uppercase tracking-widest mb-4 flex items-center gap-2"><Icons.Plus /> Nouveau Produit</h3>
+                                    <div className="space-y-3">
+                                        <input placeholder="Nom du produit" className="w-full bg-slate-50 p-4 rounded-2xl outline-none text-sm border border-transparent focus:border-pink-200 font-bold" value={newProduct.name} onChange={e => setNewProduct({...newProduct, name: e.target.value})} />
+                                        <div className="flex items-center gap-2">
+                                            <input type="file" accept="image/*" className="hidden" ref={fileInputRef} onChange={handleImageChange} />
+                                            <button onClick={() => fileInputRef.current.click()} className="flex-1 bg-slate-100 text-slate-600 font-bold p-4 rounded-2xl text-xs flex items-center justify-center gap-2">Image...</button>
+                                            {newProduct.img && <div className="w-12 h-12 rounded-xl overflow-hidden border"><img src={newProduct.img} className="w-full h-full object-cover" /></div>}
+                                        </div>
+                                        <button onClick={addProduct} className="w-full bg-pink-600 text-white font-black py-4 rounded-2xl uppercase text-xs shadow-lg active:scale-95 transition-all">Enregistrer</button>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-2 gap-3">
+                                    {products.map(p => (
+                                        <div key={p.firebaseId} className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-100 group relative">
+                                            <div className="aspect-square overflow-hidden bg-slate-100">
+                                                <img src={p.img} className="w-full h-full object-cover" alt={p.name} />
+                                            </div>
+                                            <div className="p-3 flex justify-between items-center bg-white">
+                                                <span className="font-bold text-[10px] uppercase truncate flex-1">{p.name}</span>
+                                                <button onClick={() => removeItem('products', p.firebaseId)} className="text-slate-300 hover:text-red-500"><Icons.Trash /></button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'deliveries' && (
+                            <div className="space-y-6 fade-in">
+                                <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100">
+                                    <h3 className="text-xs font-black text-blue-600 uppercase tracking-widest mb-4 flex items-center gap-2"><Icons.Truck /> Nouveau Colis</h3>
+                                    <div className="space-y-3">
+                                        <input placeholder="Nom du client" className="w-full bg-slate-50 p-4 rounded-2xl outline-none text-sm font-bold" value={newDelivery.clientName} onChange={e => setNewDelivery({...newDelivery, clientName: e.target.value})} />
+                                        <input placeholder="Article(s)" className="w-full bg-slate-50 p-4 rounded-2xl outline-none text-sm" value={newDelivery.article} onChange={e => setNewDelivery({...newDelivery, article: e.target.value})} />
+                                        <button onClick={addDelivery} className="w-full bg-blue-600 text-white font-black py-4 rounded-2xl uppercase text-xs shadow-lg">Ajouter au suivi</button>
+                                    </div>
+                                </div>
+
+                                <div className="space-y-4">
+                                    {deliveries.map(d => (
+                                        <div key={d.firebaseId} className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-100 fade-in">
+                                            <div className="flex justify-between items-start mb-3">
+                                                <div>
+                                                    <h4 className="font-black text-slate-800 text-sm uppercase">{d.clientName}</h4>
+                                                    <p className="text-[10px] text-slate-400 font-bold uppercase">{d.article} • {d.date}</p>
+                                                </div>
+                                                <span className={`text-[8px] font-black px-3 py-1 rounded-full uppercase ${
+                                                    d.status === 'Livré' ? 'bg-green-100 text-green-600' : 
+                                                    d.status === 'En cours' ? 'bg-blue-100 text-blue-600' : 'bg-orange-100 text-orange-600'
+                                                }`}>{d.status}</span>
+                                            </div>
+                                            <div className="flex gap-2">
+                                                {d.status !== 'Livré' && (
+                                                    <button onClick={() => updateStatus(d.firebaseId, d.status === 'Attente' ? 'En cours' : 'Livré')} className="flex-1 bg-slate-100 text-slate-600 text-[9px] font-black py-2 rounded-xl uppercase">
+                                                        {d.status === 'Attente' ? 'Expédier' : 'Terminer'}
+                                                    </button>
+                                                )}
+                                                <button onClick={() => removeItem('deliveries', d.firebaseId)} className="p-2 bg-slate-50 text-slate-300 rounded-xl hover:text-red-500"><Icons.Trash /></button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'clients' && (
+                            <div className="space-y-6">
+                                <div className="bg-white p-6 rounded-[2.5rem] shadow-sm border border-slate-100">
+                                    <h3 className="text-xs font-black text-pink-600 uppercase tracking-widest mb-4 flex items-center gap-2"><Icons.Plus /> Nouveau Client</h3>
+                                    <div className="space-y-3">
+                                        <input placeholder="Nom complet" className="w-full bg-slate-50 p-4 rounded-2xl outline-none text-sm font-bold" value={newClient.nom} onChange={e => setNewClient({...newClient, nom: e.target.value})} />
+                                        <div className="grid grid-cols-2 gap-3">
+                                            <input placeholder="Contact" className="bg-slate-50 p-4 rounded-2xl outline-none text-sm" value={newClient.contact} onChange={e => setNewClient({...newClient, contact: e.target.value})} />
+                                            <input placeholder="Adresse" className="bg-slate-50 p-4 rounded-2xl outline-none text-sm" value={newClient.adresse} onChange={e => setNewClient({...newClient, adresse: e.target.value})} />
+                                        </div>
+                                        <button onClick={addClient} className="w-full bg-pink-600 text-white font-black py-4 rounded-2xl uppercase text-xs shadow-lg">Enregistrer</button>
+                                    </div>
+                                </div>
+                                <div className="space-y-3">
+                                    {clients.map(c => (
+                                        <div key={c.firebaseId} className="bg-white p-5 rounded-[2rem] shadow-sm border border-slate-100 flex justify-between items-center fade-in">
+                                            <div>
+                                                <h4 className="font-black text-slate-800 text-sm uppercase">{c.nom}</h4>
+                                                <p className="text-[10px] text-slate-400 font-bold uppercase tracking-tighter">{c.contact} • {c.adresse}</p>
+                                            </div>
+                                            <button onClick={() => removeItem('clients', c.firebaseId)} className="text-slate-200 hover:text-red-500"><Icons.Trash /></button>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+
+                        {activeTab === 'settings' && (
+                            <div className="space-y-6 fade-in text-center p-4">
+                                <div className="bg-white p-10 rounded-[3rem] shadow-sm border border-slate-100">
+                                    <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                                        <Icons.Zap />
+                                    </div>
+                                    <h3 className="font-black text-slate-800 text-lg uppercase mb-2">Connecté</h3>
+                                    <p className="text-[10px] text-slate-400 mb-8 font-bold tracking-widest truncate">ID: {user?.uid}</p>
+                                    <button onClick={handleLogout} className="w-full bg-slate-900 text-white font-black py-5 rounded-3xl uppercase text-xs shadow-xl active:scale-95 transition-all">Déconnexion</button>
+                                </div>
+                                <p className="text-[9px] text-slate-300 font-bold uppercase tracking-widest">Session active • Cloud Sync</p>
+                            </div>
+                        )}
+                    </main>
+
+                    <div className="fixed bottom-0 left-0 right-0 bg-white/90 backdrop-blur-xl border-t px-2 py-4 flex justify-around items-center safe-area-bottom z-50 rounded-t-[2.5rem] shadow-2xl">
+                        <button onClick={() => setActiveTab('shop')} className={`flex flex-col items-center gap-1 p-3 rounded-2xl transition-all ${activeTab === 'shop' ? 'text-pink-600 bg-pink-50' : 'text-slate-400'}`}>
+                            <Icons.Home /><span className="text-[7px] font-black uppercase">Stock</span>
+                        </button>
+                        <button onClick={() => setActiveTab('deliveries')} className={`flex flex-col items-center gap-1 p-3 rounded-2xl transition-all ${activeTab === 'deliveries' ? 'text-blue-600 bg-blue-50' : 'text-slate-400'}`}>
+                            <Icons.Truck /><span className="text-[7px] font-black uppercase">Suivi</span>
+                        </button>
+                        <button onClick={() => setActiveTab('clients')} className={`flex flex-col items-center gap-1 p-3 rounded-2xl transition-all ${activeTab === 'clients' ? 'text-pink-600 bg-pink-50' : 'text-slate-400'}`}>
+                            <Icons.Users /><span className="text-[7px] font-black uppercase">Clients</span>
+                        </button>
+                        <button onClick={() => setActiveTab('settings')} className={`flex flex-col items-center gap-1 p-3 rounded-2xl transition-all ${activeTab === 'settings' ? 'text-pink-600 bg-pink-50' : 'text-slate-400'}`}>
+                            <Icons.Settings /><span className="text-[7px] font-black uppercase">Admin</span>
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
