@@ -3,15 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rasoa en Ligne Pro - Gestion Simplifiée</title>
-    <!-- Moteurs React, Babel et Firebase -->
+    <title>Rasoa en Ligne Pro - Gestion</title>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
     
-    <!-- Firebase SDK -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
         import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, query } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
@@ -32,7 +30,15 @@
     <script type="text/babel">
         const { useState, useEffect, useMemo } = React;
 
-        const firebaseConfig = JSON.parse(__firebase_config);
+        // REMPLACEZ CES VALEURS PAR VOS INFOS FIREBASE POUR GITHUB
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            apiKey: "VOTRE_API_KEY",
+            authDomain: "VOTRE_AUTH_DOMAIN",
+            projectId: "VOTRE_PROJECT_ID",
+            storageBucket: "VOTRE_STORAGE_BUCKET",
+            messagingSenderId: "VOTRE_SENDER_ID",
+            appId: "VOTRE_APP_ID"
+        };
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'rasoa-pro-app';
 
         const Icon = ({ name, size = 20, className = "" }) => {
@@ -72,7 +78,7 @@
                         } else {
                             await signInAnonymously(auth);
                         }
-                    } catch (e) { console.error(e); }
+                    } catch (e) { console.error("Erreur Auth:", e); }
                 };
                 initAuth();
                 const unsubscribe = onAuthStateChanged(auth, setUser);
@@ -82,25 +88,28 @@
             useEffect(() => {
                 if (!db || !user) return;
                 const { collection, onSnapshot } = window.fb;
-                const unsubLiv = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'livraisons'), (s) => setLivraisons(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-                const unsubCli = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'clients'), (s) => setClients(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-                const unsubDep = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'depenses'), (s) => setDepenses(s.docs.map(d => ({ id: d.id, ...d.data() }))));
-                const unsubVer = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'versements'), (s) => setVersements(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+                
+                // Chemins Firebase selon RULE 1
+                const unsubLiv = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'livraisons'), (s) => setLivraisons(s.docs.map(d => ({ id: d.id, ...d.data() }))), (e) => console.error(e));
+                const unsubCli = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'clients'), (s) => setClients(s.docs.map(d => ({ id: d.id, ...d.data() }))), (e) => console.error(e));
+                const unsubDep = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'depenses'), (s) => setDepenses(s.docs.map(d => ({ id: d.id, ...d.data() }))), (e) => console.error(e));
+                const unsubVer = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'versements'), (s) => setVersements(s.docs.map(d => ({ id: d.id, ...d.data() }))), (e) => console.error(e));
+                
                 return () => { unsubLiv(); unsubCli(); unsubDep(); unsubVer(); };
             }, [db, user]);
 
             const stats = useMemo(() => {
-                const totalLivre = livraisons.filter(l => l.statut === "Livré").reduce((acc, curr) => acc + (curr.montant || 0), 0);
-                const totalVersements = versements.reduce((acc, curr) => acc + curr.montant, 0);
-                const totalDepenses = depenses.reduce((acc, curr) => acc + curr.montant, 0);
+                const totalLivre = livraisons.filter(l => l.statut === "Livré").reduce((acc, curr) => acc + (Number(curr.montant) || 0), 0);
+                const totalVersements = versements.reduce((acc, curr) => acc + (Number(curr.montant) || 0), 0);
+                const totalDepenses = depenses.reduce((acc, curr) => acc + (Number(curr.montant) || 0), 0);
                 return { totalLivre, totalVersements, totalDepenses, beneficePerte: totalVersements - totalDepenses };
             }, [livraisons, versements, depenses]);
 
             const filteredClients = useMemo(() => {
-                if (!searchTerm) return [];
+                if (!searchTerm || searchTerm.length < 2) return [];
                 return clients.filter(c => 
-                    c.nom.toLowerCase().includes(searchTerm.toLowerCase()) || 
-                    c.telephone.includes(searchTerm)
+                    (c.nom && c.nom.toLowerCase().includes(searchTerm.toLowerCase())) || 
+                    (c.telephone && c.telephone.includes(searchTerm))
                 );
             }, [searchTerm, clients]);
 
@@ -128,7 +137,7 @@
                     await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'livraisons'), newOrder);
                     setOrderForm({ nom: "", telephone: "", montant: "", lieu: "", type: "Produit" });
                     setActiveTab("livraisons");
-                } catch (e) { alert(e.message); }
+                } catch (e) { alert("Erreur lors de l'ajout: " + e.message); }
             };
 
             const addNewClient = async () => {
@@ -158,7 +167,7 @@
 
             const deleteItem = async (col, id) => {
                 const { doc, deleteDoc } = window.fb;
-                if (confirm("Supprimer ?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id));
+                if (confirm("Supprimer définitivement ?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id));
             };
 
             const nextStatus = async (id, currentStatus) => {
@@ -170,11 +179,11 @@
             if (!isAdmin) {
                 return (
                     <div className="flex items-center justify-center min-h-screen p-4 bg-slate-900">
-                        <div className="bg-white p-8 rounded-[2.5rem] w-full max-w-sm text-center">
+                        <div className="bg-white p-8 rounded-[2.5rem] w-full max-w-sm text-center shadow-2xl">
                             <Icon name="lock" size={40} className="mx-auto mb-4 text-indigo-600" />
-                            <h1 className="text-2xl font-black mb-6 uppercase">Rasoa Pro</h1>
+                            <h1 className="text-2xl font-black mb-6 uppercase tracking-tight">Rasoa Pro</h1>
                             <input type="password" placeholder="Mot de passe" className="w-full p-4 bg-slate-50 border rounded-2xl mb-4 text-center font-bold" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleLogin()} />
-                            <button onClick={handleLogin} className="w-full bg-indigo-600 text-white font-bold py-4 rounded-2xl">Connexion</button>
+                            <button onClick={handleLogin} className="w-full bg-indigo-600 text-white font-bold py-4 rounded-2xl hover:bg-indigo-700 transition-colors">Connexion</button>
                         </div>
                     </div>
                 );
@@ -195,7 +204,7 @@
                                 { id: 'finances', label: 'Finances', icon: 'wallet' },
                                 { id: 'clients', label: 'Clients', icon: 'users' }
                             ].map(t => (
-                                <button key={t.id} onClick={() => setActiveTab(t.id)} className={`px-6 py-4 flex items-center gap-2 border-b-2 font-bold text-sm whitespace-nowrap ${activeTab === t.id ? 'border-indigo-600 text-indigo-600' : 'border-transparent text-slate-400'}`}>
+                                <button key={t.id} onClick={() => setActiveTab(t.id)} className={`px-6 py-4 flex items-center gap-2 border-b-2 font-bold text-sm whitespace-nowrap transition-all ${activeTab === t.id ? 'border-indigo-600 text-indigo-600 bg-indigo-50/30' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
                                     <Icon name={t.icon} size={16} /> {t.label}
                                 </button>
                             ))}
@@ -208,13 +217,13 @@
                                 <h2 className="text-xl font-black uppercase text-center">Nouvelle Vente</h2>
                                 
                                 <div className="relative">
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-2">Rechercher un client enregistré</label>
+                                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-2">Rechercher un client</label>
                                     <div className="relative">
                                         <Icon name="search" size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" />
                                         <input 
                                             value={searchTerm} 
                                             onChange={e => setSearchTerm(e.target.value)} 
-                                            placeholder="Nom ou téléphone..." 
+                                            placeholder="Tapez un nom..." 
                                             className="w-full p-4 pl-12 bg-indigo-50/50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-indigo-500"
                                         />
                                     </div>
@@ -262,38 +271,38 @@
 
                         {activeTab === 'finances' && (
                             <div className="space-y-8">
-                                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                                     <div className="bg-white p-6 rounded-3xl border shadow-sm">
-                                        <div className="text-[10px] font-black uppercase text-slate-400 mb-1">Total Articles Livrés</div>
-                                        <div className="text-xl font-black">{stats.totalLivre.toLocaleString()} Ar</div>
+                                        <div className="text-[10px] font-black uppercase text-slate-400 mb-1">Articles Livrés</div>
+                                        <div className="text-xl font-black">{(stats.totalLivre).toLocaleString()} Ar</div>
                                     </div>
                                     <div className="bg-green-50 p-6 rounded-3xl border border-green-100">
                                         <div className="text-[10px] font-black uppercase text-green-600 mb-1">Versements Reçus</div>
-                                        <div className="text-xl font-black text-green-700">{stats.totalVersements.toLocaleString()} Ar</div>
+                                        <div className="text-xl font-black text-green-700">{(stats.totalVersements).toLocaleString()} Ar</div>
                                     </div>
                                     <div className="bg-red-50 p-6 rounded-3xl border border-red-100">
                                         <div className="text-[10px] font-black uppercase text-red-600 mb-1">Dépenses</div>
-                                        <div className="text-xl font-black text-red-700">{stats.totalDepenses.toLocaleString()} Ar</div>
+                                        <div className="text-xl font-black text-red-700">{(stats.totalDepenses).toLocaleString()} Ar</div>
                                     </div>
                                     <div className={`${stats.beneficePerte >= 0 ? 'bg-indigo-600 text-white' : 'bg-rose-600 text-white'} p-6 rounded-3xl shadow-lg`}>
                                         <div className="text-[10px] font-black uppercase opacity-70 mb-1">Bénéfice Net</div>
-                                        <div className="text-xl font-black">{stats.beneficePerte.toLocaleString()} Ar</div>
+                                        <div className="text-xl font-black">{(stats.beneficePerte).toLocaleString()} Ar</div>
                                     </div>
                                 </div>
 
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                                     <div className="bg-white rounded-3xl border p-6 space-y-4">
-                                        <h3 className="font-black uppercase text-sm flex items-center gap-2 text-green-600"><Icon name="arrow-down-circle" size={16} /> Versement</h3>
+                                        <h3 className="font-black uppercase text-sm flex items-center gap-2 text-green-600"><Icon name="arrow-down-circle" size={16} /> Encaisser Versement</h3>
                                         <div className="flex gap-2">
                                             <input type="number" placeholder="Montant" className="flex-1 p-3 bg-slate-50 rounded-xl font-bold" value={versementForm.montant} onChange={e => setVersementForm({montant: e.target.value})} />
-                                            <button onClick={() => addFinances('versement')} className="bg-green-600 text-white px-4 rounded-xl"><Icon name="plus" /></button>
+                                            <button onClick={() => addFinances('versement')} className="bg-green-600 text-white px-4 rounded-xl hover:bg-green-700 transition-colors"><Icon name="plus" /></button>
                                         </div>
                                         <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
                                             {versements.map(v => (
-                                                <div key={v.id} className="flex justify-between items-center p-3 bg-slate-50 rounded-xl text-sm italic">
-                                                    <span>{v.date}</span>
+                                                <div key={v.id} className="flex justify-between items-center p-3 bg-slate-50 rounded-xl text-sm">
+                                                    <span className="text-slate-500">{v.date}</span>
                                                     <div className="flex items-center gap-4">
-                                                        <span className="font-black text-green-600">{v.montant.toLocaleString()} Ar</span>
+                                                        <span className="font-black text-green-600">{(v.montant).toLocaleString()} Ar</span>
                                                         <button onClick={() => deleteItem('versements', v.id)} className="text-slate-300 hover:text-red-500"><Icon name="x" size={14}/></button>
                                                     </div>
                                                 </div>
@@ -306,14 +315,14 @@
                                         <input placeholder="Motif..." className="w-full p-3 bg-slate-50 rounded-xl text-sm" value={depenseForm.motif} onChange={e => setDepenseForm({...depenseForm, motif: e.target.value})} />
                                         <div className="flex gap-2">
                                             <input type="number" placeholder="Montant" className="flex-1 p-3 bg-slate-50 rounded-xl font-bold" value={depenseForm.montant} onChange={e => setDepenseForm({...depenseForm, montant: e.target.value})} />
-                                            <button onClick={() => addFinances('depense')} className="bg-red-600 text-white px-4 rounded-xl"><Icon name="plus" /></button>
+                                            <button onClick={() => addFinances('depense')} className="bg-red-600 text-white px-4 rounded-xl hover:bg-red-700 transition-colors"><Icon name="plus" /></button>
                                         </div>
                                         <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
                                             {depenses.map(d => (
                                                 <div key={d.id} className="flex justify-between items-center p-3 bg-slate-50 rounded-xl text-sm">
                                                     <div><div className="font-bold">{d.motif}</div><div className="text-[10px] text-slate-400">{d.date}</div></div>
                                                     <div className="flex items-center gap-4">
-                                                        <span className="font-black text-red-500">{d.montant.toLocaleString()} Ar</span>
+                                                        <span className="font-black text-red-500">{(d.montant).toLocaleString()} Ar</span>
                                                         <button onClick={() => deleteItem('depenses', d.id)} className="text-slate-300 hover:text-red-500"><Icon name="x" size={14}/></button>
                                                     </div>
                                                 </div>
@@ -325,28 +334,29 @@
                         )}
 
                         {activeTab === 'livraisons' && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {livraisons.map(l => (
-                                    <div key={l.id} className="bg-white rounded-[2rem] border shadow-sm overflow-hidden flex flex-col relative">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {livraisons.length === 0 && <p className="text-center col-span-full text-slate-400 py-10">Aucune livraison en cours</p>}
+                                {livraisons.sort((a,b) => b.timestamp - a.timestamp).map(l => (
+                                    <div key={l.id} className="bg-white rounded-[2rem] border shadow-sm overflow-hidden flex flex-col relative transition-all hover:shadow-md">
                                         <div className={`py-2 text-[10px] font-black uppercase text-center border-b ${l.statut === 'Livré' ? 'bg-green-100 text-green-700' : l.statut === 'Livraison' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
                                             {l.statut}
                                         </div>
                                         <div className="p-6 space-y-4 flex-1">
                                             <div className="flex justify-between items-start">
-                                                <h3 className="font-black text-slate-900 text-lg">{l.client}</h3>
-                                                <button onClick={() => deleteItem('livraisons', l.id)} className="text-slate-200 hover:text-red-500"><Icon name="trash-2" size={14}/></button>
+                                                <h3 className="font-black text-slate-900 text-lg leading-tight">{l.client}</h3>
+                                                <button onClick={() => deleteItem('livraisons', l.id)} className="text-slate-200 hover:text-red-500 transition-colors"><Icon name="trash-2" size={14}/></button>
                                             </div>
                                             <div className="space-y-2 text-xs">
-                                                <p className="text-slate-500 flex items-start gap-1"><Icon name="map-pin" size={12} className="shrink-0"/> {l.lieu || "Non précisé"}</p>
+                                                <p className="text-slate-500 flex items-start gap-1"><Icon name="map-pin" size={12} className="shrink-0 text-slate-300"/> {l.lieu || "Lieu non précisé"}</p>
                                                 <div className="font-mono text-slate-400 bg-slate-50 p-2 rounded-lg">{l.telephone}</div>
                                             </div>
                                             <div className="pt-4 border-t flex justify-between items-end mt-auto">
                                                 <div className="flex flex-col">
-                                                    <span className="text-[8px] text-slate-400 uppercase font-bold">Prix Article</span>
-                                                    <span className="text-slate-900 text-xl font-black">{l.montant.toLocaleString()} Ar</span>
+                                                    <span className="text-[8px] text-slate-400 uppercase font-bold">Prix</span>
+                                                    <span className="text-slate-900 text-xl font-black">{(Number(l.montant) || 0).toLocaleString()} Ar</span>
                                                 </div>
                                                 {l.statut !== "Livré" && (
-                                                    <button onClick={() => nextStatus(l.id, l.statut)} className="bg-slate-900 text-white p-3 rounded-2xl shadow-lg">
+                                                    <button onClick={() => nextStatus(l.id, l.statut)} className="bg-slate-900 text-white p-3 rounded-2xl shadow-lg hover:bg-indigo-600 transition-colors">
                                                         <Icon name="chevron-right" />
                                                     </button>
                                                 )}
@@ -362,31 +372,33 @@
                                 <div className="bg-white rounded-[2rem] p-8 border shadow-sm max-w-xl mx-auto">
                                     <h3 className="font-black uppercase mb-6 flex items-center gap-2"><Icon name="user-plus" /> Nouveau Client</h3>
                                     <div className="space-y-4">
-                                        <input value={clientForm.nom} onChange={e => setClientForm({...clientForm, nom: e.target.value})} placeholder="Nom complet" className="w-full p-4 bg-slate-50 rounded-2xl border-none" />
+                                        <input value={clientForm.nom} onChange={e => setClientForm({...clientForm, nom: e.target.value})} placeholder="Nom complet" className="w-full p-4 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-indigo-500" />
                                         <input value={clientForm.telephone} onChange={e => setClientForm({...clientForm, telephone: e.target.value})} placeholder="Téléphone" className="w-full p-4 bg-slate-50 rounded-2xl border-none font-mono" />
-                                        <input value={clientForm.lieu} onChange={e => setClientForm({...clientForm, lieu: e.target.value})} placeholder="Adresse par défaut (Optionnel)" className="w-full p-4 bg-slate-50 rounded-2xl border-none" />
-                                        <button onClick={addNewClient} className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase">Enregistrer Client</button>
+                                        <input value={clientForm.lieu} onChange={e => setClientForm({...clientForm, lieu: e.target.value})} placeholder="Adresse par défaut" className="w-full p-4 bg-slate-50 rounded-2xl border-none" />
+                                        <button onClick={addNewClient} className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase hover:bg-indigo-700">Enregistrer</button>
                                     </div>
                                 </div>
 
                                 <div className="bg-white rounded-[2rem] border shadow-sm overflow-hidden">
-                                    <table className="w-full text-left text-sm">
-                                        <thead className="bg-slate-50 border-b text-[10px] uppercase text-slate-400 font-black">
-                                            <tr><th className="px-6 py-4">Nom</th><th className="px-6 py-4">Contact</th><th className="px-6 py-4">Lieu Habituel</th><th className="px-6 py-4"></th></tr>
-                                        </thead>
-                                        <tbody className="divide-y divide-slate-50">
-                                            {clients.map(c => (
-                                                <tr key={c.id} className="hover:bg-slate-50">
-                                                    <td className="px-6 py-4 font-bold">{c.nom}</td>
-                                                    <td className="px-6 py-4 font-mono text-slate-500">{c.telephone}</td>
-                                                    <td className="px-6 py-4 text-slate-400 text-xs">{c.lieu || "-"}</td>
-                                                    <td className="px-6 py-4 text-right">
-                                                        <button onClick={() => deleteItem('clients', c.id)} className="text-slate-300 hover:text-red-500"><Icon name="trash-2" size={14}/></button>
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left text-sm">
+                                            <thead className="bg-slate-50 border-b text-[10px] uppercase text-slate-400 font-black">
+                                                <tr><th className="px-6 py-4">Nom</th><th className="px-6 py-4">Contact</th><th className="px-6 py-4">Adresse</th><th className="px-6 py-4"></th></tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-50">
+                                                {clients.map(c => (
+                                                    <tr key={c.id} className="hover:bg-slate-50 transition-colors">
+                                                        <td className="px-6 py-4 font-bold">{c.nom}</td>
+                                                        <td className="px-6 py-4 font-mono text-slate-500">{c.telephone}</td>
+                                                        <td className="px-6 py-4 text-slate-400 text-xs">{c.lieu || "-"}</td>
+                                                        <td className="px-6 py-4 text-right">
+                                                            <button onClick={() => deleteItem('clients', c.id)} className="text-slate-300 hover:text-red-500"><Icon name="trash-2" size={14}/></button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
                                 </div>
                             </div>
                         )}
