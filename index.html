@@ -4,29 +4,29 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Rasoa en Ligne Pro</title>
-    <!-- Chargement de React et Babel pour le navigateur -->
+    <!-- Moteurs pour exécuter React directement dans le navigateur -->
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <!-- Tailwind CSS pour le style -->
+    <!-- Tailwind CSS pour le design -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Lucide Icons -->
+    <!-- Bibliothèque d'icônes Lucide -->
     <script src="https://unpkg.com/lucide@latest"></script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;900&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;900&display=swap');
         body { font-family: 'Inter', sans-serif; }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-900">
+<body class="bg-slate-50">
     <div id="root"></div>
 
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        // Composants Icônes simplifiés (SVG Lucide)
+        // Composant pour afficher les icônes Lucide
         const Icon = ({ name, size = 20, className = "" }) => {
             useEffect(() => {
-                lucide.createIcons();
+                if (window.lucide) window.lucide.createIcons();
             }, [name]);
             return <i data-lucide={name} className={className} style={{ width: size, height: size }}></i>;
         };
@@ -37,10 +37,11 @@
             const [activeTab, setActiveTab] = useState("commandes");
             
             const [clients, setClients] = useState([
-                { nom: "Exemple Client", telephone: "0340000001", zone: "Centre-ville", lieu: "Lot IVG 42 Antaninarenina" }
+                { nom: "Client Test", telephone: "0340000000", zone: "Centre-ville", lieu: "Lot 123 Analakely" }
             ]);
             const [livraisons, setLivraisons] = useState([]);
 
+            // Formulaire Commande
             const [clientName, setClientName] = useState("");
             const [telephone, setTelephone] = useState("");
             const [montant, setMontant] = useState("");
@@ -48,9 +49,9 @@
             const [lieu, setLieu] = useState("");
             const [typeCommande, setTypeCommande] = useState("Produit");
 
+            // Formulaire Client
             const [newClientNom, setNewClientNom] = useState("");
             const [newClientTel, setNewClientTel] = useState("");
-            const [newClientZone, setNewClientZone] = useState("Centre-ville");
             const [newClientLieu, setNewClientLieu] = useState("");
 
             const zones = {
@@ -69,7 +70,7 @@
 
             const addOrder = () => {
                 if (!clientName || !montant || !telephone || !lieu) {
-                    alert("Informations incomplètes");
+                    alert("Veuillez remplir tous les champs");
                     return;
                 }
                 const frais = zones[zone];
@@ -86,19 +87,29 @@
                     statut: "Préparation",
                     date: new Date().toLocaleDateString('fr-FR')
                 };
+                
                 if (!clients.find(c => c.telephone === telephone)) {
                     setClients(prev => [...prev, { nom: clientName, telephone, zone, lieu }]);
                 }
+                
                 setLivraisons(prev => [newOrder, ...prev]);
                 setClientName(""); setTelephone(""); setMontant(""); setLieu("");
                 setActiveTab("livraisons");
             };
 
             const addClientDirectly = () => {
-                if (!newClientNom || !newClientTel || !newClientLieu) return;
-                setClients(prev => [...prev, { nom: newClientNom, telephone: newClientTel, zone: newClientZone, lieu: newClientLieu }]);
+                if (!newClientNom || !newClientTel || !newClientLieu) {
+                    alert("Remplissez les infos clients");
+                    return;
+                }
+                setClients(prev => [...prev, { 
+                    nom: newClientNom, 
+                    telephone: newClientTel, 
+                    zone: "Centre-ville", 
+                    lieu: newClientLieu 
+                }]);
                 setNewClientNom(""); setNewClientTel(""); setNewClientLieu("");
-                alert("Client ajouté !");
+                alert("Client ajouté au répertoire !");
             };
 
             const updateStatus = (id) => {
@@ -112,122 +123,180 @@
             };
 
             return (
-                <div className="min-h-screen pb-12">
-                    <nav className="bg-white border-b sticky top-0 z-20 px-4 h-16 flex items-center justify-between shadow-sm">
+                <div className="min-h-screen pb-10">
+                    {/* Header */}
+                    <nav className="bg-white border-b sticky top-0 z-20 px-6 h-16 flex items-center justify-between shadow-sm">
                         <div className="flex items-center gap-2">
                             <div className="bg-indigo-600 p-2 rounded-lg text-white">
                                 <Icon name="package" />
                             </div>
-                            <span className="text-xl font-bold uppercase tracking-tight">Rasoa en ligne</span>
+                            <span className="text-xl font-black uppercase tracking-tighter">Rasoa Pro</span>
                         </div>
                         {isAdmin && (
-                            <button onClick={() => setIsAdmin(false)} className="text-slate-500 hover:text-red-600 flex items-center gap-2">
-                                <Icon name="log-out" size={16} /> Quitter
+                            <button onClick={() => setIsAdmin(false)} className="text-slate-400 hover:text-red-500 transition-colors">
+                                <Icon name="log-out" size={18} />
                             </button>
                         )}
                     </nav>
 
-                    <main className="max-w-6xl mx-auto px-4 pt-8">
+                    <main className="max-w-5xl mx-auto px-4 pt-8">
                         {!isAdmin ? (
-                            <div className="flex justify-center py-12">
-                                <div className="bg-white p-8 rounded-3xl shadow-xl border w-full max-w-md text-center">
-                                    <div className="flex justify-center mb-6 text-indigo-600">
-                                        <Icon name="lock" size={48} />
+                            <div className="flex justify-center py-20">
+                                <div className="bg-white p-8 rounded-[2rem] shadow-xl border border-slate-100 w-full max-w-md text-center">
+                                    <div className="bg-indigo-50 w-20 h-20 rounded-full flex items-center justify-center mx-auto mb-6 text-indigo-600">
+                                        <Icon name="lock" size={32} />
                                     </div>
-                                    <h2 className="text-2xl font-bold mb-6">Accès Gestion</h2>
+                                    <h2 className="text-2xl font-bold mb-6">Gestionnaire Login</h2>
                                     <input
                                         type="password"
                                         value={password}
                                         onChange={(e) => setPassword(e.target.value)}
-                                        className="w-full px-4 py-3 rounded-xl border mb-4 outline-none focus:ring-2 focus:ring-indigo-500"
+                                        className="w-full px-5 py-4 rounded-2xl border border-slate-200 mb-4 outline-none focus:ring-4 focus:ring-indigo-100 transition-all text-center"
                                         placeholder="Mot de passe"
                                     />
-                                    <button onClick={handleLogin} className="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl shadow-lg">
+                                    <button onClick={handleLogin} className="w-full bg-indigo-600 text-white font-bold py-4 rounded-2xl shadow-lg hover:bg-indigo-700 transition-all">
                                         Se connecter
                                     </button>
                                 </div>
                             </div>
                         ) : (
                             <div className="space-y-6">
-                                <div className="flex bg-white p-1 rounded-2xl border shadow-sm max-w-2xl mx-auto">
+                                {/* Menu Navigation Onglets */}
+                                <div className="flex bg-white p-1.5 rounded-2xl border border-slate-200 shadow-sm max-w-md mx-auto">
                                     {["commandes", "livraisons", "clients"].map(tab => (
                                         <button 
                                             key={tab}
                                             onClick={() => setActiveTab(tab)} 
-                                            className={`flex-1 py-3 text-xs md:text-sm font-bold rounded-xl transition-all capitalize ${activeTab === tab ? "bg-indigo-600 text-white shadow" : "text-slate-500"}`}
+                                            className={`flex-1 py-3 text-xs font-bold rounded-xl transition-all capitalize ${activeTab === tab ? "bg-indigo-600 text-white shadow-md" : "text-slate-500 hover:bg-slate-50"}`}
                                         >
-                                            {tab === "commandes" ? "Nouvelle Vente" : tab}
+                                            {tab === "commandes" ? "Vente" : tab}
                                         </button>
                                     ))}
                                 </div>
 
+                                {/* Contenu : Commandes */}
                                 {activeTab === "commandes" && (
-                                    <div className="max-w-2xl mx-auto bg-white rounded-3xl p-8 shadow-sm border space-y-4">
-                                        <h2 className="text-xl font-black uppercase text-center">Nouvelle Vente</h2>
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Nom client" className="w-full bg-slate-50 border rounded-xl px-4 py-3 text-sm" />
-                                            <input value={telephone} onChange={(e) => setTelephone(e.target.value)} placeholder="Téléphone" className="w-full bg-slate-50 border rounded-xl px-4 py-3 text-sm" />
+                                    <div className="max-w-xl mx-auto bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 space-y-5">
+                                        <div className="text-center space-y-1">
+                                            <h2 className="text-xl font-black uppercase">Nouvelle Commande</h2>
+                                            <p className="text-xs text-slate-400">Enregistrez une vente et la livraison</p>
                                         </div>
-                                        <input value={lieu} onChange={(e) => setLieu(e.target.value)} placeholder="Lieu exact de livraison" className="w-full bg-indigo-50 border border-indigo-100 rounded-xl px-4 py-3 text-sm" />
+                                        
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                            <input type="number" value={montant} onChange={(e) => setMontant(e.target.value)} placeholder="Montant Ar" className="w-full bg-slate-50 border rounded-xl px-4 py-3 text-sm font-bold" />
-                                            <select value={typeCommande} onChange={(e) => setTypeCommande(e.target.value)} className="w-full bg-slate-50 border rounded-xl px-4 py-3 text-sm">
-                                                <option value="Produit">Produit</option>
-                                                <option value="Colis">Colis</option>
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase ml-2">Nom du Client</label>
+                                                <input value={clientName} onChange={(e) => setClientName(e.target.value)} placeholder="Ex: Jean" className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm focus:bg-white transition-all" />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase ml-2">Téléphone</label>
+                                                <input value={telephone} onChange={(e) => setTelephone(e.target.value)} placeholder="034..." className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-mono" />
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold text-indigo-500 uppercase ml-2 flex items-center gap-1">
+                                                <Icon name="map-pin" size={10} /> Lieu exact de livraison
+                                            </label>
+                                            <input value={lieu} onChange={(e) => setLieu(e.target.value)} placeholder="Lot, Quartier, Immeuble..." className="w-full bg-indigo-50/50 border border-indigo-100 rounded-2xl px-4 py-3 text-sm focus:bg-white transition-all" />
+                                        </div>
+
+                                        <div className="grid grid-cols-2 gap-4">
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase ml-2">Montant Article</label>
+                                                <input type="number" value={montant} onChange={(e) => setMontant(e.target.value)} placeholder="Ar" className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm font-bold" />
+                                            </div>
+                                            <div className="space-y-1">
+                                                <label className="text-[10px] font-bold text-slate-400 uppercase ml-2">Type</label>
+                                                <select value={typeCommande} onChange={(e) => setTypeCommande(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm">
+                                                    <option value="Produit">Produit</option>
+                                                    <option value="Colis">Colis</option>
+                                                </select>
+                                            </div>
+                                        </div>
+
+                                        <div className="space-y-1">
+                                            <label className="text-[10px] font-bold text-slate-400 uppercase ml-2">Zone de livraison</label>
+                                            <select value={zone} onChange={(e) => setZone(e.target.value)} className="w-full bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 text-sm">
+                                                {Object.keys(zones).map(z => <option key={z} value={z}>{z} (+{zones[z]} Ar)</option>)}
                                             </select>
                                         </div>
-                                        <select value={zone} onChange={(e) => setZone(e.target.value)} className="w-full bg-slate-50 border rounded-xl px-4 py-3 text-sm">
-                                            {Object.keys(zones).map(z => <option key={z} value={z}>{z} (+{zones[z]} Ar)</option>)}
-                                        </select>
-                                        <div className="bg-indigo-50 p-4 rounded-2xl flex justify-between font-bold text-indigo-700">
-                                            <span>Total :</span>
-                                            <span>{(Number(montant) + zones[zone]).toLocaleString()} Ar</span>
+
+                                        <div className="bg-slate-900 p-5 rounded-2xl flex justify-between items-center text-white">
+                                            <span className="text-xs font-bold text-slate-400 uppercase">Total à payer</span>
+                                            <span className="text-xl font-black">{(Number(montant) + zones[zone]).toLocaleString()} Ar</span>
                                         </div>
-                                        <button onClick={addOrder} className="w-full bg-slate-900 text-white py-4 rounded-2xl font-bold shadow-lg">Valider</button>
+
+                                        <button onClick={addOrder} className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-bold shadow-xl shadow-indigo-100 hover:scale-[1.02] active:scale-95 transition-all">
+                                            Enregistrer la commande
+                                        </button>
                                     </div>
                                 )}
 
+                                {/* Contenu : Livraisons */}
                                 {activeTab === "livraisons" && (
                                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                        {livraisons.map(liv => (
-                                            <div key={liv.id} className="bg-white rounded-3xl border shadow-sm overflow-hidden flex flex-col">
-                                                <div className={`py-2 text-[10px] font-black uppercase text-center border-b ${liv.statut === 'Livré' ? 'bg-green-100 text-green-700' : 'bg-orange-100 text-orange-700'}`}>{liv.statut}</div>
-                                                <div className="p-6 space-y-4">
-                                                    <div className="flex justify-between">
-                                                        <h3 className="font-black text-slate-900">{liv.client}</h3>
-                                                        <span className="text-[10px] px-2 py-1 bg-slate-100 rounded font-bold uppercase">{liv.type}</span>
+                                        {livraisons.length === 0 ? (
+                                            <div className="col-span-full py-20 text-center text-slate-400 italic">Aucune livraison en cours</div>
+                                        ) : (
+                                            livraisons.map(liv => (
+                                                <div key={liv.id} className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden flex flex-col">
+                                                    <div className={`py-2 text-[10px] font-black uppercase text-center ${liv.statut === 'Livré' ? 'bg-green-100 text-green-700' : liv.statut === 'Livraison' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
+                                                        {liv.statut}
                                                     </div>
-                                                    <div className="text-xs text-slate-500"><Icon name="map-pin" size={10} className="inline mr-1" /> {liv.zone} - {liv.lieu}</div>
-                                                    <div className="pt-4 border-t flex justify-between items-center">
-                                                        <span className="font-black text-indigo-600">{liv.total.toLocaleString()} Ar</span>
-                                                        {liv.statut !== "Livré" && <button onClick={() => updateStatus(liv.id)} className="bg-slate-900 text-white p-2 rounded-xl"><Icon name="chevron-right" /></button>}
+                                                    <div className="p-6 space-y-4">
+                                                        <div className="flex justify-between items-start">
+                                                            <h3 className="font-black text-slate-800 text-lg leading-tight">{liv.client}</h3>
+                                                            <span className="text-[9px] px-2 py-1 bg-slate-100 rounded-lg font-bold uppercase">{liv.type}</span>
+                                                        </div>
+                                                        <div className="space-y-1">
+                                                            <div className="text-xs font-bold text-indigo-600">{liv.zone}</div>
+                                                            <div className="text-xs text-slate-500 flex items-start gap-1"><Icon name="map-pin" size={12} className="mt-0.5" /> {liv.lieu}</div>
+                                                            <div className="text-xs font-mono text-slate-400">{liv.telephone}</div>
+                                                        </div>
+                                                        <div className="pt-4 border-t flex justify-between items-center mt-auto">
+                                                            <span className="font-black text-slate-900 text-lg">{liv.total.toLocaleString()} Ar</span>
+                                                            {liv.statut !== "Livré" && (
+                                                                <button onClick={() => updateStatus(liv.id)} className="bg-slate-900 text-white p-2.5 rounded-xl hover:bg-indigo-600 transition-all">
+                                                                    <Icon name="chevron-right" size={18} />
+                                                                </button>
+                                                            )}
+                                                        </div>
                                                     </div>
                                                 </div>
-                                            </div>
-                                        ))}
+                                            ))
+                                        )}
                                     </div>
                                 )}
 
+                                {/* Contenu : Clients */}
                                 {activeTab === "clients" && (
                                     <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                                        <div className="bg-white rounded-3xl border p-6 space-y-4 h-fit">
-                                            <h2 className="font-black uppercase text-sm">Nouveau Client</h2>
-                                            <input value={newClientNom} onChange={(e) => setNewClientNom(e.target.value)} placeholder="Nom" className="w-full bg-slate-50 border rounded-xl px-4 py-3 text-sm" />
-                                            <input value={newClientTel} onChange={(e) => setNewClientTel(e.target.value)} placeholder="Téléphone" className="w-full bg-slate-50 border rounded-xl px-4 py-3 text-sm" />
-                                            <textarea value={newClientLieu} onChange={(e) => setNewClientLieu(e.target.value)} placeholder="Adresse complète" className="w-full bg-slate-50 border rounded-xl px-4 py-3 text-sm h-24" />
-                                            <button onClick={addClientDirectly} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold">Ajouter</button>
+                                        <div className="bg-white rounded-3xl border border-slate-100 p-6 shadow-sm h-fit space-y-4">
+                                            <h2 className="font-black uppercase text-sm flex items-center gap-2">
+                                                <Icon name="users" size={16} className="text-indigo-600" /> Ajouter Client
+                                            </h2>
+                                            <input value={newClientNom} onChange={(e) => setNewClientNom(e.target.value)} placeholder="Nom" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm" />
+                                            <input value={newClientTel} onChange={(e) => setNewClientTel(e.target.value)} placeholder="Téléphone" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm font-mono" />
+                                            <textarea value={newClientLieu} onChange={(e) => setNewClientLieu(e.target.value)} placeholder="Lieu/Adresse habituel" className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-sm h-24 resize-none" />
+                                            <button onClick={addClientDirectly} className="w-full bg-indigo-600 text-white py-3 rounded-xl font-bold shadow-md hover:bg-indigo-700 transition-all">
+                                                Ajouter au répertoire
+                                            </button>
                                         </div>
-                                        <div className="lg:col-span-2 bg-white rounded-3xl border shadow-sm overflow-x-auto">
+                                        <div className="lg:col-span-2 bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
                                             <table className="w-full text-left text-sm">
-                                                <thead className="bg-slate-50 border-b text-[10px] uppercase text-slate-400 font-bold">
-                                                    <tr><th className="px-6 py-4">Client</th><th className="px-6 py-4">Contact</th><th className="px-6 py-4">Lieu</th></tr>
+                                                <thead className="bg-slate-50 border-b text-[10px] uppercase text-slate-400 font-bold tracking-widest">
+                                                    <tr>
+                                                        <th className="px-6 py-4">Nom Client</th>
+                                                        <th className="px-6 py-4">Téléphone</th>
+                                                        <th className="px-6 py-4">Lieu</th>
+                                                    </tr>
                                                 </thead>
-                                                <tbody className="divide-y">
+                                                <tbody className="divide-y divide-slate-50">
                                                     {clients.map((c, i) => (
-                                                        <tr key={i} className="hover:bg-slate-50">
-                                                            <td className="px-6 py-4 font-bold">{c.nom}</td>
+                                                        <tr key={i} className="hover:bg-indigo-50/30 transition-colors">
+                                                            <td className="px-6 py-4 font-bold text-slate-800">{c.nom}</td>
                                                             <td className="px-6 py-4 text-slate-500 font-mono">{c.telephone}</td>
-                                                            <td className="px-6 py-4 text-xs">{c.lieu}</td>
+                                                            <td className="px-6 py-4 text-xs text-slate-400 italic">{c.lieu}</td>
                                                         </tr>
                                                     ))}
                                                 </tbody>
@@ -238,6 +307,9 @@
                             </div>
                         )}
                     </main>
+                    <footer className="mt-12 text-center text-[10px] font-bold text-slate-300 uppercase tracking-widest">
+                        © Rasoa en Ligne Pro - Gestion Livraisons
+                    </footer>
                 </div>
             );
         }
