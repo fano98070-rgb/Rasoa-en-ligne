@@ -49,10 +49,32 @@
         import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, serverTimestamp, query } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
 
+        // Configuration Firebase
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+
+        // Exposer au scope global pour React
         window.FirebaseSDK = {
-            initializeApp, getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, serverTimestamp, query,
-            getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged
+            auth, db, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, serverTimestamp, query,
+            signInAnonymously, signInWithCustomToken, onAuthStateChanged
         };
+        
+        // Sign In immédiat
+        const initAuth = async () => {
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+                console.log("Auth success");
+            } catch (e) {
+                console.error("Auth error", e);
+            }
+        };
+        initAuth();
     </script>
 
     <script type="text/babel">
@@ -117,9 +139,8 @@
         function App() {
             const [user, setUser] = useState(null);
             const [isAdmin, setIsAdmin] = useState(false);
-            const [password, setPassword] = useState("");
             const [activeTab, setActiveTab] = useState("commandes");
-            const [authLoading, setAuthLoading] = useState(true);
+            const [loading, setLoading] = useState(true);
 
             const [clients, setClients] = useState([]);
             const [livraisons, setLivraisons] = useState([]);
@@ -131,38 +152,22 @@
             const [depenseForm, setDepenseForm] = useState({ motif: "", montant: "" });
 
             useEffect(() => {
-                const checkAndInit = async () => {
-                    if (window.FirebaseSDK && typeof __firebase_config !== 'undefined') {
-                        const { initializeApp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } = window.FirebaseSDK;
-                        try {
-                            const config = JSON.parse(__firebase_config);
-                            const app = initializeApp(config);
-                            const auth = getAuth(app);
-                            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                                await signInWithCustomToken(auth, __initial_auth_token);
-                            } else {
-                                await signInAnonymously(auth);
-                            }
-                            onAuthStateChanged(auth, (u) => {
-                                setUser(u);
-                                setAuthLoading(false);
-                            });
-                        } catch (e) {
-                            console.error("Firebase Init Error:", e);
-                            setAuthLoading(false);
-                        }
+                const checkFirebase = setInterval(() => {
+                    if (window.FirebaseSDK) {
+                        clearInterval(checkFirebase);
+                        const { onAuthStateChanged, auth } = window.FirebaseSDK;
+                        onAuthStateChanged(auth, (u) => {
+                            setUser(u);
+                            setLoading(false);
+                        });
                     }
-                };
-                const interval = setInterval(() => {
-                    if (window.FirebaseSDK) { clearInterval(interval); checkAndInit(); }
-                }, 100);
-                return () => clearInterval(interval);
+                }, 50);
+                return () => clearInterval(checkFirebase);
             }, []);
 
             useEffect(() => {
                 if (!user || !window.FirebaseSDK) return;
-                const { getFirestore, collection, onSnapshot } = window.FirebaseSDK;
-                const db = getFirestore();
+                const { db, collection, onSnapshot } = window.FirebaseSDK;
                 const appId = typeof __app_id !== 'undefined' ? __app_id : 'rasoa-pro-v2';
                 
                 const getColRef = (name) => collection(db, 'artifacts', appId, 'public', 'data', name);
@@ -188,16 +193,13 @@
                 );
             }, [searchTerm, clients]);
 
-            const handleLogin = () => {
-                // Pour accéder directement à l'interface comme demandé
-                setIsAdmin(true); 
-                setPassword("");
+            const handleEnterApp = () => {
+                setIsAdmin(true);
             };
 
             const addOrder = async () => {
                 if (!orderForm.nom || !orderForm.montant) return;
-                const { getFirestore, collection, addDoc, serverTimestamp } = window.FirebaseSDK;
-                const db = getFirestore();
+                const { db, collection, addDoc, serverTimestamp } = window.FirebaseSDK;
                 const appId = typeof __app_id !== 'undefined' ? __app_id : 'rasoa-pro-v2';
                 try {
                     await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'livraisons'), {
@@ -224,8 +226,7 @@
 
             const addManualClient = async () => {
                 if (!clientForm.nom || !clientForm.telephone) return;
-                const { getFirestore, collection, addDoc, serverTimestamp } = window.FirebaseSDK;
-                const db = getFirestore();
+                const { db, collection, addDoc, serverTimestamp } = window.FirebaseSDK;
                 const appId = typeof __app_id !== 'undefined' ? __app_id : 'rasoa-pro-v2';
                 await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'clients'), {
                     ...clientForm,
@@ -236,8 +237,7 @@
 
             const addDepense = async () => {
                 if (!depenseForm.motif || !depenseForm.montant) return;
-                const { getFirestore, collection, addDoc, serverTimestamp } = window.FirebaseSDK;
-                const db = getFirestore();
+                const { db, collection, addDoc, serverTimestamp } = window.FirebaseSDK;
                 const appId = typeof __app_id !== 'undefined' ? __app_id : 'rasoa-pro-v2';
                 await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'depenses'), { 
                     ...depenseForm, 
@@ -249,8 +249,7 @@
             };
 
             const updateStatus = async (id, current) => {
-                const { getFirestore, doc, updateDoc } = window.FirebaseSDK;
-                const db = getFirestore();
+                const { db, doc, updateDoc } = window.FirebaseSDK;
                 const appId = typeof __app_id !== 'undefined' ? __app_id : 'rasoa-pro-v2';
                 const next = current === "Préparation" ? "Livraison" : "Livré";
                 await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', id), { statut: next });
@@ -258,20 +257,23 @@
 
             const deleteItem = async (col, id) => {
                 if (confirm("Supprimer définitivement ?")) {
-                    const { getFirestore, doc, deleteDoc } = window.FirebaseSDK;
-                    const db = getFirestore();
+                    const { db, doc, deleteDoc } = window.FirebaseSDK;
                     const appId = typeof __app_id !== 'undefined' ? __app_id : 'rasoa-pro-v2';
                     await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id));
                 }
             };
 
-            if (authLoading) return <div className="flex items-center justify-center min-h-screen font-black text-indigo-600 bg-white uppercase tracking-widest">Initialisation...</div>;
+            if (loading) return (
+                <div className="flex flex-col items-center justify-center min-h-screen bg-white">
+                    <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                    <p className="mt-4 font-black text-xs uppercase tracking-widest text-slate-400">Chargement des données...</p>
+                </div>
+            );
 
             if (!isAdmin) return (
                 <div className="flex items-center justify-center min-h-screen p-4 relative overflow-hidden bg-white">
-                    {/* Bouton Maitre tout en haut à droite */}
                     <div className="fixed top-6 right-6 z-50">
-                        <button onClick={handleLogin} className="group flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-full text-[11px] font-black uppercase tracking-widest transition-all shadow-[0_10px_30px_-10px_rgba(79,70,229,0.5)] active:scale-90">
+                        <button onClick={handleEnterApp} className="group flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-full text-[11px] font-black uppercase tracking-widest transition-all shadow-xl active:scale-90">
                             Accéder au Site
                             <Icons.ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />
                         </button>
@@ -284,7 +286,6 @@
                         <img src={LOGO_URL} className="w-32 h-32 rounded-full mx-auto mb-10 object-cover border-8 border-white shadow-2xl" />
                         <h1 className="font-black text-5xl text-slate-900 mb-2 uppercase tracking-tighter">Rasoa <span className="text-indigo-600">Pro</span></h1>
                         <p className="text-slate-400 font-bold text-xs uppercase tracking-[0.3em] mb-12">Gestion Commerciale & Data</p>
-                        <div className="w-20 h-1 bg-indigo-600 mx-auto rounded-full mb-8"></div>
                     </div>
                 </div>
             );
@@ -296,10 +297,10 @@
                             <img src={LOGO_URL} className="w-12 h-12 rounded-full border shadow-sm" />
                             <div>
                                 <h1 className="font-black text-xl tracking-tighter uppercase text-slate-800">Rasoa <span className="text-indigo-600">Pro</span></h1>
-                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Dashboard Officiel</p>
+                                <p className="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Connecté</p>
                             </div>
                         </div>
-                        <button onClick={() => setIsAdmin(false)} className="text-slate-500 font-black text-[10px] uppercase border-2 border-slate-200 px-6 py-3 rounded-full hover:bg-slate-800 hover:text-white hover:border-slate-800 transition-all">Déconnexion</button>
+                        <button onClick={() => setIsAdmin(false)} className="text-slate-500 font-black text-[10px] uppercase border-2 border-slate-200 px-6 py-3 rounded-full hover:bg-slate-800 hover:text-white hover:border-slate-800 transition-all">Quitter</button>
                     </nav>
 
                     <div className="glass-card border-b sticky top-24 z-40 overflow-x-auto no-scrollbar">
@@ -330,7 +331,7 @@
                                     {filteredClients.length > 0 && (
                                         <div className="absolute z-10 w-full mt-3 bg-white border-2 border-indigo-50 rounded-3xl shadow-2xl max-h-60 overflow-y-auto p-2 no-scrollbar">
                                             {filteredClients.map(c => (
-                                                <div key={c.id} onClick={() => { setOrderForm({...orderForm, nom: c.nom, telephone: c.telephone, lieu: c.lieu, source: c.source || 'Facebook', remarque: c.remarque || ''}); setSearchTerm(""); }} 
+                                                <div key={c.id} onClick={() => { setOrderForm({...orderForm, nom: c.nom, telephone: c.telephone, lieu: c.lieu || "", source: c.source || 'Facebook', remarque: c.remarque || ''}); setSearchTerm(""); }} 
                                                      className="p-4 hover:bg-indigo-50 cursor-pointer rounded-2xl flex items-center justify-between mb-1">
                                                     <div>
                                                         <div className="font-black text-slate-800 text-sm uppercase">{c.nom}</div>
@@ -425,7 +426,7 @@
                                 <div className="glass-card rounded-[3rem] p-10 shadow-sm border-white max-w-2xl mx-auto">
                                     <h3 className="font-black uppercase text-[11px] text-slate-800 mb-8 tracking-widest text-center">Déclarer une dépense</h3>
                                     <div className="space-y-4">
-                                        <input value={depenseForm.motif} onChange={e => setDepenseForm({...depenseForm, motif: e.target.value})} placeholder="Nature de la dépense (ex: Loyer, Pub...)" className="w-full p-5 bg-white rounded-2xl border-2 border-slate-50 font-bold outline-none focus:border-rose-100" />
+                                        <input value={depenseForm.motif} onChange={e => setDepenseForm({...depenseForm, motif: e.target.value})} placeholder="Nature de la dépense..." className="w-full p-5 bg-white rounded-2xl border-2 border-slate-50 font-bold outline-none focus:border-rose-100" />
                                         <div className="flex gap-4">
                                             <input type="number" value={depenseForm.montant} onChange={e => setDepenseForm({...depenseForm, montant: e.target.value})} placeholder="Montant" className="flex-1 p-5 bg-white rounded-2xl border-2 border-slate-50 font-bold outline-none text-rose-500" />
                                             <button onClick={addDepense} className="bg-rose-500 text-white px-10 rounded-2xl font-black uppercase text-[11px] shadow-lg active:scale-95 transition-all">Valider</button>
@@ -437,36 +438,33 @@
 
                         {activeTab === 'clients' && (
                             <div className="space-y-8 animate-in fade-in duration-500">
-                                {/* Formulaire Ajout Client */}
                                 <div className="glass-card rounded-[3rem] p-8 shadow-sm border-white max-w-4xl mx-auto">
                                     <h3 className="font-black uppercase text-[11px] text-slate-800 mb-6 tracking-widest text-center flex items-center justify-center gap-3">
-                                        <Icons.Plus size={16} /> Ajouter un nouveau client
+                                        <Icons.Plus size={16} /> Nouveau client
                                     </h3>
                                     <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                                         <input value={clientForm.nom} onChange={e => setClientForm({...clientForm, nom: e.target.value})} placeholder="Nom complet" className="p-4 bg-white rounded-2xl border border-slate-100 font-bold outline-none" />
                                         <input value={clientForm.telephone} onChange={e => setClientForm({...clientForm, telephone: e.target.value})} placeholder="Téléphone" className="p-4 bg-white rounded-2xl border border-slate-100 font-bold outline-none" />
-                                        <input value={clientForm.lieu} onChange={e => setClientForm({...clientForm, lieu: e.target.value})} placeholder="Ville/Quartier" className="p-4 bg-white rounded-2xl border border-slate-100 font-bold outline-none" />
+                                        <input value={clientForm.lieu} onChange={e => setClientForm({...clientForm, lieu: e.target.value})} placeholder="Localisation" className="p-4 bg-white rounded-2xl border border-slate-100 font-bold outline-none" />
                                         <div className="flex gap-1 p-1 bg-slate-100 rounded-2xl">
                                             <button onClick={() => setClientForm({...clientForm, source: 'Facebook'})} className={`flex-1 flex items-center justify-center rounded-xl transition-all ${clientForm.source === 'Facebook' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400'}`}><Icons.Facebook size={16} /></button>
                                             <button onClick={() => setClientForm({...clientForm, source: 'TikTok'})} className={`flex-1 flex items-center justify-center rounded-xl transition-all ${clientForm.source === 'TikTok' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-400'}`}><Icons.TikTok size={16} /></button>
                                         </div>
                                     </div>
-                                    <button onClick={addManualClient} className="w-full mt-4 bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl active:scale-95 transition-all">Enregistrer le client</button>
+                                    <button onClick={addManualClient} className="w-full mt-4 bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl active:scale-95 transition-all">Enregistrer</button>
                                 </div>
 
-                                {/* Liste des Clients */}
                                 <div className="glass-card rounded-[3rem] overflow-hidden shadow-sm border-white border-2">
                                     <div className="overflow-x-auto">
                                         <table className="w-full text-left">
                                             <thead className="bg-slate-100/50 text-[10px] font-black uppercase text-slate-500 border-b">
-                                                <tr><th className="p-8">Identité</th><th className="p-8">Contact</th><th className="p-8">Localisation</th><th className="p-8">Source</th><th className="p-8 text-right">Actions</th></tr>
+                                                <tr><th className="p-8">Identité</th><th className="p-8">Contact</th><th className="p-8">Source</th><th className="p-8 text-right">Actions</th></tr>
                                             </thead>
                                             <tbody className="divide-y-2 divide-slate-50 font-bold">
                                                 {clients.sort((a,b) => (a.nom || "").localeCompare(b.nom || "")).map(c => (
                                                     <tr key={c.id} className="hover:bg-white transition-colors">
-                                                        <td className="p-8 uppercase tracking-tighter text-slate-800">{c.nom}</td>
+                                                        <td className="p-8 uppercase text-slate-800">{c.nom}</td>
                                                         <td className="p-8 text-indigo-600 font-black">{c.telephone}</td>
-                                                        <td className="p-8 text-[11px] uppercase opacity-50 font-black tracking-widest">{c.lieu || '-'}</td>
                                                         <td className="p-8">
                                                             {c.source === 'TikTok' ? (
                                                                 <div className="flex items-center gap-2 text-rose-500 text-[10px] uppercase font-black"><Icons.TikTok size={14}/> TikTok</div>
