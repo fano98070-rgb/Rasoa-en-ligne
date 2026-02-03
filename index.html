@@ -1,457 +1,570 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rasoa Pro - V2</title>
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-    <!-- React & ReactDOM -->
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <!-- Babel pour JSX -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+import React, { useState, useEffect, useMemo } from 'react';
+import { initializeApp } from 'firebase/app';
+import { 
+  getFirestore, 
+  collection, 
+  addDoc, 
+  onSnapshot, 
+  doc, 
+  updateDoc, 
+  deleteDoc, 
+  serverTimestamp 
+} from 'firebase/firestore';
+import { 
+  getAuth, 
+  signInAnonymously, 
+  signInWithCustomToken, 
+  onAuthStateChanged 
+} from 'firebase/auth';
+import { 
+  ShoppingCart, 
+  Truck, 
+  Users, 
+  Wallet, 
+  LogOut, 
+  Lock, 
+  Plus, 
+  Search, 
+  Trash2, 
+  ChevronRight, 
+  MapPin,
+  ArrowDownCircle,
+  ArrowUpCircle,
+  X,
+  Zap,
+  ArrowRight,
+  Loader2
+} from 'lucide-react';
 
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
-        body { font-family: 'Plus Jakarta Sans', sans-serif; margin: 0; padding: 0; }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .bg-gradient-custom {
-            background: linear-gradient(135deg, #f8fafc 0%, #eef2ff 100%);
+// --- Configuration Firebase ---
+const firebaseConfig = JSON.parse(__firebase_config);
+const app = initializeApp(firebaseConfig);
+const auth = getAuth(app);
+const db = getFirestore(app);
+const appId = typeof __app_id !== 'undefined' ? __app_id : 'rasoa-pro-v1';
+
+// Composants Icones personnalisés pour les réseaux sociaux
+const FacebookIcon = ({ size = 20, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/>
+  </svg>
+);
+
+const TikTokIcon = ({ size = 20, className = "" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
+    <path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5" />
+  </svg>
+);
+
+export default function App() {
+  const [user, setUser] = useState(null);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState(false);
+  const [activeTab, setActiveTab] = useState('vente');
+  const [authLoading, setAuthLoading] = useState(true);
+
+  // État des données
+  const [clients, setClients] = useState([]);
+  const [livraisons, setLivraisons] = useState([]);
+  const [versements, setVersements] = useState([]);
+  const [depenses, setDepenses] = useState([]);
+
+  // Formulaires
+  const [orderForm, setOrderForm] = useState({ nom: '', tel: '', lieu: '', montant: '', type: 'Produit', source: 'Facebook' });
+  const [clientForm, setClientForm] = useState({ nom: '', tel: '', lieu: '', source: 'Facebook' });
+  const [vMontant, setVMontant] = useState('');
+  const [dForm, setDForm] = useState({ motif: '', montant: '' });
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // 1. Authentification
+  useEffect(() => {
+    const initAuth = async () => {
+      try {
+        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+          await signInWithCustomToken(auth, __initial_auth_token);
+        } else {
+          await signInAnonymously(auth);
         }
-        .glass-card {
-            background: rgba(255, 255, 255, 0.8);
-            backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.5);
-        }
-        .animated-blob {
-            position: fixed;
-            width: 500px;
-            height: 500px;
-            border-radius: 50%;
-            filter: blur(80px);
-            z-index: -1;
-            opacity: 0.4;
-            animation: move 20s infinite alternate;
-        }
-        @keyframes move {
-            from { transform: translate(-10%, -10%) scale(1); }
-            to { transform: translate(20%, 20%) scale(1.1); }
-        }
-    </style>
-</head>
-<body class="bg-gradient-custom min-h-screen">
-    <div id="root"></div>
+      } catch (err) {
+        console.error("Auth Error:", err);
+      } finally {
+        setAuthLoading(false);
+      }
+    };
+    initAuth();
+    const unsubscribe = onAuthStateChanged(auth, (u) => {
+      setUser(u);
+      if (localStorage.getItem('rasoa_session') === 'active') setIsLoggedIn(true);
+    });
+    return () => unsubscribe();
+  }, []);
 
-    <!-- Firebase SDKs -->
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, serverTimestamp, query } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged, signInWithCustomToken } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
+  // 2. Listeners Firestore
+  useEffect(() => {
+    if (!user) return;
+    const getColRef = (name) => collection(db, 'artifacts', appId, 'public', 'data', name);
+    const unsubscribers = [
+      onSnapshot(getColRef('livraisons'), (s) => setLivraisons(s.docs.map(d => ({ id: d.id, ...d.data() }))), (e) => console.error(e)),
+      onSnapshot(getColRef('clients'), (s) => setClients(s.docs.map(d => ({ id: d.id, ...d.data() }))), (e) => console.error(e)),
+      onSnapshot(getColRef('versements'), (s) => setVersements(s.docs.map(d => ({ id: d.id, ...d.data() }))), (e) => console.error(e)),
+      onSnapshot(getColRef('depenses'), (s) => setDepenses(s.docs.map(d => ({ id: d.id, ...d.data() }))), (e) => console.error(e))
+    ];
+    return () => unsubscribers.forEach(unsub => unsub());
+  }, [user]);
 
-        const firebaseConfig = JSON.parse(__firebase_config);
+  const handleLogin = (e) => {
+    if (e) e.preventDefault();
+    if (password === 'rasoa123') {
+      setIsLoggedIn(true);
+      setLoginError(false);
+      localStorage.setItem('rasoa_session', 'active');
+    } else {
+      setLoginError(true);
+      setPassword('');
+    }
+  };
 
-        const startFirebase = async () => {
-            try {
-                const app = initializeApp(firebaseConfig);
-                const auth = getAuth(app);
-                const db = getFirestore(app);
-                const appId = typeof __app_id !== 'undefined' ? __app_id : 'rasoa-pro-v2';
+  const handleLogout = () => {
+    setIsLoggedIn(false);
+    localStorage.removeItem('rasoa_session');
+  };
 
-                const initAuth = async () => {
-                    try {
-                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                            await signInWithCustomToken(auth, __initial_auth_token);
-                        } else {
-                            await signInAnonymously(auth);
-                        }
-                    } catch (authErr) {
-                        console.warn("Auth fallback", authErr);
-                        await signInAnonymously(auth);
-                    }
-                };
+  const deleteItem = async (col, id) => {
+    if (!user) return;
+    try {
+      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id));
+    } catch (err) { console.error(err); }
+  };
 
-                await initAuth();
+  const addOrder = async () => {
+    if (!user || !orderForm.nom || !orderForm.montant) return;
+    try {
+      await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'livraisons'), {
+        ...orderForm,
+        montant: Number(orderForm.montant),
+        statut: 'Préparation',
+        timestamp: serverTimestamp(),
+        date: new Date().toLocaleDateString('fr-FR'),
+        userId: user.uid
+      });
+      setOrderForm({ nom: '', tel: '', lieu: '', montant: '', type: 'Produit', source: 'Facebook' });
+      setActiveTab('livraisons');
+    } catch (err) { console.error(err); }
+  };
 
-                window.FirebaseSDK = {
-                    auth, db, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, serverTimestamp, query,
-                    onAuthStateChanged,
-                    appId,
-                    isReady: true,
-                    error: null
-                };
-                
-            } catch (error) {
-                console.error("Firebase Initialization Failure:", error);
-                window.FirebaseSDK = { 
-                    isReady: true, 
-                    error: "Problème Firebase : " + error.message 
-                };
-            }
-        };
+  const updateStatus = async (id, current) => {
+    if (!user) return;
+    const next = current === 'Préparation' ? 'Livraison' : 'Livré';
+    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', id), { statut: next });
+  };
 
-        startFirebase();
-    </script>
+  const addVersement = async () => {
+    if (!user || !vMontant) return;
+    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'versements'), {
+      montant: Number(vMontant),
+      timestamp: serverTimestamp(),
+      date: new Date().toLocaleDateString('fr-FR'),
+      userId: user.uid
+    });
+    setVMontant('');
+  };
 
-    <script type="text/babel">
-        const { useState, useEffect, useMemo } = React;
+  const addDepense = async () => {
+    if (!user || !dForm.motif || !dForm.montant) return;
+    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'depenses'), {
+      ...dForm,
+      montant: Number(dForm.montant),
+      timestamp: serverTimestamp(),
+      date: new Date().toLocaleDateString('fr-FR'),
+      userId: user.uid
+    });
+    setDForm({ motif: '', montant: '' });
+  };
 
-        const Icons = {
-            ShoppingCart: ({size=24, className=""}) => (
-                <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-                    <circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/>
-                    <path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/>
-                </svg>
-            ),
-            Truck: ({size=24, className=""}) => (
-                <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-                    <path d="M10 17h4V5H2v12h3m9 0h2l3-3V5h-5v12Z"/><circle cx="7.5" cy="17.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/>
-                </svg>
-            ),
-            Users: ({size=24, className=""}) => (
-                <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-                    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/>
-                </svg>
-            ),
-            Wallet: ({size=24, className=""}) => (
-                <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-                    <path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/>
-                </svg>
-            ),
-            Trash2: ({size=24, className=""}) => (
-                <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-                    <path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2m-6 9v4m4-4v4"/>
-                </svg>
-            ),
-            Plus: ({size=24, className=""}) => (
-                <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-                    <path d="M12 5v14m-7-7h14"/>
-                </svg>
-            ),
-            Facebook: ({size=24, className=""}) => (
-                <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
-                    <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
-                </svg>
-            ),
-            TikTok: ({size=24, className=""}) => (
-                <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" className={className}>
-                    <path d="M12.525.02c1.31-.02 2.61-.01 3.91-.02.08 1.53.63 3.09 1.75 4.17 1.12 1.11 2.7 1.62 4.24 1.79v4.03c-1.44-.05-2.89-.35-4.2-.97-.06 3.43-.01 6.86-.02 10.29-.01 1.97-.74 3.92-2.12 5.29-1.71 1.69-4.55 2.11-6.72 1.17-2.21-.98-3.66-3.44-3.32-5.81.15-2.1 1.74-3.94 3.7-4.55.03.12.06.25.08.38-1.28.47-2.13 1.81-2.04 3.17.1 1.5.97 2.87 2.31 3.49 1.3.61 2.92.34 3.94-.68 1.05-1.03 1.38-2.61 1.34-4.04-.01-4.69-.01-9.39-.01-14.08-.12-.01-.24-.01-.36-.01z"/>
-                </svg>
-            )
-        };
+  const addClient = async () => {
+    if (!user || !clientForm.nom) return;
+    try {
+      await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'clients'), { 
+        ...clientForm, 
+        telephone: clientForm.tel,
+        createdAt: serverTimestamp() 
+      });
+      setClientForm({ nom: '', tel: '', lieu: '', source: 'Facebook' });
+    } catch (err) { console.error(err); }
+  };
 
-        const LOGO_URL = "https://lh3.googleusercontent.com/u/0/d/14wx6DlgO3bZ6rSIhQQz6wRzlLrBgwNAp=w1000-h1000";
+  const stats = useMemo(() => {
+    const totalLivre = livraisons.filter(l => l.statut === "Livré").reduce((acc, c) => acc + (Number(c.montant) || 0), 0);
+    const totalVer = versements.reduce((acc, c) => acc + (Number(c.montant) || 0), 0);
+    const totalDep = depenses.reduce((acc, c) => acc + (Number(c.montant) || 0), 0);
+    return { totalLivre, totalVer, totalDep, solde: totalVer - totalDep };
+  }, [livraisons, versements, depenses]);
 
-        function App() {
-            const [user, setUser] = useState(null);
-            const [isAdmin, setIsAdmin] = useState(false);
-            const [activeTab, setActiveTab] = useState("commandes");
-            const [loading, setLoading] = useState(true);
-            const [error, setError] = useState(null);
+  const filteredClientsSearch = useMemo(() => {
+    if (!searchTerm) return [];
+    return clients.filter(c => 
+      c.nom?.toLowerCase().includes(searchTerm.toLowerCase()) || 
+      c.tel?.includes(searchTerm) ||
+      c.telephone?.includes(searchTerm)
+    );
+  }, [searchTerm, clients]);
 
-            const [clients, setClients] = useState([]);
-            const [livraisons, setLivraisons] = useState([]);
-            const [depenses, setDepenses] = useState([]);
+  if (authLoading) return <div className="h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-indigo-600" size={40} /></div>;
 
-            const [searchTerm, setSearchTerm] = useState("");
-            const [orderForm, setOrderForm] = useState({ nom: "", telephone: "", montant: "", lieu: "", source: "Facebook" });
-            const [clientForm, setClientForm] = useState({ nom: "", telephone: "", lieu: "", source: "Facebook" });
-            const [depenseForm, setDepenseForm] = useState({ motif: "", montant: "" });
+  if (!isLoggedIn) {
+    return (
+      <div className="fixed inset-0 bg-[#0f172a] flex items-center justify-center p-4">
+        <div className="bg-white p-8 rounded-[2.5rem] w-full max-w-sm text-center shadow-2xl">
+          <div className="bg-indigo-50 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-8 text-indigo-600 rotate-3">
+            <Lock size={36} />
+          </div>
+          <h1 className="text-3xl font-black mb-2 uppercase tracking-tighter text-slate-900">Rasoa Pro</h1>
+          <p className="text-slate-400 text-sm mb-8 font-bold uppercase tracking-widest">Espace Sécurisé</p>
+          <form onSubmit={handleLogin} className="space-y-4">
+            <input 
+              type="password" 
+              autoFocus
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              placeholder="Code d'accès" 
+              className="w-full p-5 bg-slate-50 border-2 border-transparent focus:border-indigo-500 rounded-2xl text-center font-black text-xl outline-none transition-all"
+            />
+            <button type="submit" className="w-full bg-indigo-600 text-white font-black py-5 rounded-2xl hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 flex items-center justify-center gap-3">
+              <span>ENTRER</span>
+              <ArrowRight size={20} />
+            </button>
+          </form>
+          {loginError && <div className="mt-6 p-3 bg-rose-50 text-rose-600 text-xs font-black rounded-xl uppercase tracking-wider">Accès refusé</div>}
+        </div>
+      </div>
+    );
+  }
 
-            useEffect(() => {
-                const interval = setInterval(() => {
-                    if (window.FirebaseSDK?.isReady) {
-                        clearInterval(interval);
-                        if (window.FirebaseSDK.error) {
-                            setError(window.FirebaseSDK.error);
-                            setLoading(false);
-                        } else {
-                            const { auth, onAuthStateChanged } = window.FirebaseSDK;
-                            const unsubscribe = onAuthStateChanged(auth, (u) => {
-                                setUser(u);
-                                setLoading(false);
-                            });
-                            return () => unsubscribe();
-                        }
-                    }
-                }, 100);
-                return () => clearInterval(interval);
-            }, []);
+  return (
+    <div className="bg-[#F8FAFC] min-h-screen pb-24 font-sans">
+      <nav className="bg-white/80 backdrop-blur-md border-b px-6 h-20 flex items-center justify-between sticky top-0 z-50">
+        <div className="flex items-center gap-3 font-black text-2xl tracking-tighter uppercase text-slate-900">
+          <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-200">
+            <Zap size={22} fill="currentColor" />
+          </div>
+          RASOA <span className="text-indigo-600">PRO</span>
+        </div>
+        <button onClick={handleLogout} className="text-slate-400 font-bold text-sm flex items-center gap-2 px-5 py-2.5 rounded-xl hover:bg-rose-50 hover:text-rose-500 transition-all">
+          <LogOut size={18} /> Déconnexion
+        </button>
+      </nav>
 
-            useEffect(() => {
-                if (!user || !window.FirebaseSDK?.db) return;
-                const { db, collection, onSnapshot, appId } = window.FirebaseSDK;
-                const getCol = (name) => collection(db, 'artifacts', appId, 'public', 'data', name);
+      {/* Navigation */}
+      <div className="bg-white border-b overflow-x-auto sticky top-20 z-40 no-scrollbar">
+        <div className="max-w-5xl mx-auto px-4 flex">
+          {[
+            { id: 'vente', label: 'Vente', icon: ShoppingCart },
+            { id: 'livraisons', label: 'Livraisons', icon: Truck },
+            { id: 'finances', label: 'Finances', icon: Wallet },
+            { id: 'clients', label: 'Clients', icon: Users },
+          ].map(tab => (
+            <button 
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-8 py-5 flex items-center gap-2 border-b-4 font-black text-sm whitespace-nowrap transition-all ${
+                activeTab === tab.id ? 'border-indigo-600 text-indigo-600 bg-indigo-50/50' : 'border-transparent text-slate-400 hover:text-slate-600'
+              }`}
+            >
+              <tab.icon size={18} /> {tab.label}
+            </button>
+          ))}
+        </div>
+      </div>
 
-                const unsubLiv = onSnapshot(getCol('livraisons'), (s) => setLivraisons(s.docs.map(d => ({ id: d.id, ...d.data() }))), e => console.error(e));
-                const unsubCli = onSnapshot(getCol('clients'), (s) => setClients(s.docs.map(d => ({ id: d.id, ...d.data() }))), e => console.error(e));
-                const unsubDep = onSnapshot(getCol('depenses'), (s) => setDepenses(s.docs.map(d => ({ id: d.id, ...d.data() }))), e => console.error(e));
-
-                return () => { unsubLiv(); unsubCli(); unsubDep(); };
-            }, [user]);
-
-            const stats = useMemo(() => {
-                const entries = livraisons.filter(l => l.statut === "Livré").reduce((acc, c) => acc + (Number(c.montant) || 0), 0);
-                const out = depenses.reduce((acc, c) => acc + (Number(c.montant) || 0), 0);
-                return { entries, out, solde: entries - out };
-            }, [livraisons, depenses]);
-
-            const filteredClients = useMemo(() => {
-                if (!searchTerm) return [];
-                return clients.filter(c => c.nom?.toLowerCase().includes(searchTerm.toLowerCase()) || c.telephone?.includes(searchTerm));
-            }, [searchTerm, clients]);
-
-            const handleAddOrder = async () => {
-                if (!user || !orderForm.nom || !orderForm.montant) return;
-                const { db, collection, addDoc, serverTimestamp, appId } = window.FirebaseSDK;
-                
-                try {
-                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'livraisons'), {
-                        ...orderForm,
-                        montant: Number(orderForm.montant),
-                        statut: "Préparation",
-                        timestamp: serverTimestamp(),
-                        date: new Date().toLocaleDateString('fr-FR'),
-                        userId: user.uid
-                    });
-
-                    if (!clients.some(c => c.telephone === orderForm.telephone)) {
-                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'clients'), {
-                            nom: orderForm.nom, telephone: orderForm.telephone, lieu: orderForm.lieu, source: orderForm.source, userId: user.uid
-                        });
-                    }
-                    setOrderForm({ nom: "", telephone: "", montant: "", lieu: "", source: "Facebook" });
-                    setActiveTab("livraisons");
-                } catch(e) { console.error(e); }
-            };
-
-            const handleAddClient = async () => {
-                if (!user || !clientForm.nom || !clientForm.telephone) return;
-                const { db, collection, addDoc, appId } = window.FirebaseSDK;
-                try {
-                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'clients'), {
-                        ...clientForm,
-                        userId: user.uid
-                    });
-                    setClientForm({ nom: "", telephone: "", lieu: "", source: "Facebook" });
-                } catch(e) { console.error(e); }
-            };
-
-            const updateStatus = async (id, current) => {
-                if (!user) return;
-                const { db, doc, updateDoc, appId } = window.FirebaseSDK;
-                const next = current === "Préparation" ? "Livraison" : "Livré";
-                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', id), { statut: next });
-            };
-
-            const deleteItem = async (col, id) => {
-                if (!user) return;
-                const { db, doc, deleteDoc, appId } = window.FirebaseSDK;
-                await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id));
-            };
-
-            const handleAddDepense = async () => {
-                if (!user || !depenseForm.motif || !depenseForm.montant) return;
-                const { db, collection, addDoc, serverTimestamp, appId } = window.FirebaseSDK;
-                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'depenses'), {
-                    ...depenseForm, montant: Number(depenseForm.montant), timestamp: serverTimestamp(), date: new Date().toLocaleDateString('fr-FR'), userId: user.uid
-                });
-                setDepenseForm({ motif: "", montant: "" });
-            };
-
-            if (loading) return <div className="min-h-screen flex items-center justify-center bg-white"><div className="w-10 h-10 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div></div>;
+      <main className="max-w-5xl mx-auto p-4 md:p-8">
+        
+        {activeTab === 'vente' && (
+          <div className="max-w-2xl mx-auto bg-white rounded-[3rem] p-8 md:p-12 shadow-2xl shadow-indigo-100/50 border border-white space-y-8">
+            <div className="text-center space-y-2">
+               <h2 className="text-2xl font-black uppercase text-slate-900 tracking-tight">Nouvelle Transaction</h2>
+               <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Enregistrement Rapide</p>
+            </div>
             
-            if (!isAdmin) return (
-                <div className="min-h-screen flex flex-col items-center justify-center bg-white relative overflow-hidden px-4">
-                    <div className="animated-blob bg-indigo-100 -top-20 -left-20"></div>
-                    <img src={LOGO_URL} className="w-32 h-32 rounded-full mb-8 shadow-2xl border-4 border-white object-cover" />
-                    <h1 className="text-5xl font-black tracking-tighter uppercase mb-2">Rasoa <span className="text-indigo-600">Pro</span></h1>
-                    <p className="text-slate-400 font-bold text-[10px] uppercase tracking-[0.3em] mb-12 text-center">Gestion Business Intelligente V2</p>
-                    <button onClick={() => setIsAdmin(true)} className="bg-indigo-600 text-white px-10 py-4 rounded-full font-black uppercase text-[11px] tracking-widest shadow-xl hover:bg-indigo-700 transition-all">Accéder au Dashboard</button>
-                </div>
-            );
-
-            return (
-                <div className="min-h-screen bg-slate-50/50 flex flex-col pb-20">
-                    <nav className="glass-card px-6 h-20 flex items-center justify-between sticky top-0 z-50 border-b">
-                        <div className="flex items-center gap-3">
-                            <img src={LOGO_URL} className="w-10 h-10 rounded-full object-cover" />
-                            <h1 className="font-black text-lg uppercase tracking-tighter text-slate-900">Rasoa <span className="text-indigo-600">Pro</span></h1>
+            <div className="relative">
+              <div className="relative">
+                <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" size={22} />
+                <input 
+                  type="text" 
+                  placeholder="Rechercher un client..." 
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="w-full p-5 pl-14 bg-slate-50 rounded-[2rem] border-2 border-transparent outline-none focus:bg-white focus:border-indigo-500 transition-all font-medium"
+                />
+              </div>
+              {filteredClientsSearch.length > 0 && (
+                <div className="absolute z-10 w-full mt-3 bg-white border rounded-[2rem] shadow-2xl max-h-72 overflow-hidden border-slate-100">
+                  {filteredClientsSearch.map(c => (
+                    <div 
+                      key={c.id} 
+                      onClick={() => { setOrderForm({...orderForm, nom: c.nom, tel: c.telephone || c.tel, lieu: c.lieu || '', source: c.source || 'Facebook'}); setSearchTerm(''); }}
+                      className="p-5 hover:bg-indigo-50 cursor-pointer border-b border-slate-50 last:border-none flex justify-between items-center transition-colors"
+                    >
+                      <div>
+                        <div className="font-black text-slate-800">{c.nom}</div>
+                        <div className="text-[10px] font-bold text-indigo-400 uppercase flex items-center gap-2">
+                          {c.source === 'TikTok' ? <TikTokIcon size={12} className="text-rose-500" /> : <FacebookIcon size={12} className="text-indigo-600" />}
+                          {c.telephone || c.tel}
                         </div>
-                        <button onClick={() => setIsAdmin(false)} className="text-[10px] font-black uppercase border-2 px-6 py-2 rounded-full hover:bg-slate-50">Sortir</button>
-                    </nav>
+                      </div>
+                      <Plus size={20} className="text-indigo-600 bg-indigo-100 rounded-lg p-1" />
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
 
-                    <div className="bg-white border-b sticky top-20 z-40 flex overflow-x-auto no-scrollbar shadow-sm">
-                        <div className="max-w-5xl mx-auto flex w-full">
-                            {[
-                                {id: 'commandes', label: 'Vente', icon: Icons.ShoppingCart},
-                                {id: 'livraisons', label: 'Suivi', icon: Icons.Truck},
-                                {id: 'finances', label: 'Finance', icon: Icons.Wallet},
-                                {id: 'clients', label: 'Clients', icon: Icons.Users}
-                            ].map(t => (
-                                <button key={t.id} onClick={() => setActiveTab(t.id)} className={`flex-1 px-4 py-5 border-b-4 font-black text-[10px] uppercase transition-all flex items-center justify-center gap-2 ${activeTab === t.id ? 'border-indigo-600 text-indigo-600 bg-indigo-50/30' : 'border-transparent text-slate-400'}`}>
-                                    <t.icon size={16} /> <span className="hidden sm:inline">{t.label}</span>
-                                </button>
-                            ))}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-6 border-t border-slate-50">
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase ml-4">Nom complet</label>
+                <input value={orderForm.nom} onChange={e => setOrderForm({...orderForm, nom: e.target.value})} type="text" placeholder="Ex: Jean Rakoto" className="w-full p-5 bg-slate-50 rounded-2xl font-bold text-slate-800" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase ml-4">Téléphone</label>
+                <input value={orderForm.tel} onChange={e => setOrderForm({...orderForm, tel: e.target.value})} type="text" placeholder="034..." className="w-full p-5 bg-slate-50 rounded-2xl font-mono font-bold" />
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase ml-4">Lieu de livraison</label>
+                <input value={orderForm.lieu} onChange={e => setOrderForm({...orderForm, lieu: e.target.value})} type="text" placeholder="Quartier, lot..." className="w-full p-5 bg-slate-50 rounded-2xl font-medium" />
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase ml-4">Provenance</label>
+                <div className="flex bg-slate-50 rounded-2xl p-1 gap-1">
+                  <button 
+                    onClick={() => setOrderForm({...orderForm, source: 'Facebook'})}
+                    className={`flex-1 flex items-center justify-center py-4 rounded-xl transition-all ${orderForm.source === 'Facebook' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}`}
+                  >
+                    <FacebookIcon size={20} />
+                  </button>
+                  <button 
+                    onClick={() => setOrderForm({...orderForm, source: 'TikTok'})}
+                    className={`flex-1 flex items-center justify-center py-4 rounded-xl transition-all ${orderForm.source === 'TikTok' ? 'bg-white shadow-sm text-rose-500' : 'text-slate-400'}`}
+                  >
+                    <TikTokIcon size={20} />
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-5">
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-indigo-500 uppercase ml-4">Montant Total</label>
+                <div className="relative">
+                  <input value={orderForm.montant} onChange={e => setOrderForm({...orderForm, montant: e.target.value})} type="number" placeholder="0" className="w-full p-5 bg-indigo-50/50 rounded-2xl font-black text-2xl text-indigo-600 outline-none focus:ring-2 focus:ring-indigo-500" />
+                  <span className="absolute right-5 top-1/2 -translate-y-1/2 font-black text-indigo-300">AR</span>
+                </div>
+              </div>
+              <div className="space-y-1">
+                <label className="text-[10px] font-black text-slate-400 uppercase ml-4">Type</label>
+                <select value={orderForm.type} onChange={e => setOrderForm({...orderForm, type: e.target.value})} className="w-full p-6 bg-slate-50 rounded-2xl border-none font-black text-slate-700 appearance-none">
+                  <option value="Produit">📦 Produit Seul</option>
+                  <option value="Colis">🎁 Pack Complet</option>
+                </select>
+              </div>
+            </div>
+
+            <button onClick={addOrder} className="w-full bg-indigo-600 text-white py-6 rounded-[2rem] font-black uppercase tracking-widest shadow-2xl shadow-indigo-200 hover:bg-indigo-700 hover:-translate-y-1 transition-all active:scale-95">
+              Enregistrer la vente
+            </button>
+          </div>
+        )}
+
+        {activeTab === 'livraisons' && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {livraisons.length === 0 && <div className="col-span-full py-32 text-center text-slate-200 font-black text-4xl uppercase opacity-20">Vide</div>}
+            {livraisons.sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)).map(l => (
+              <div key={l.id} className="bg-white rounded-[2.5rem] shadow-xl overflow-hidden flex flex-col border border-white hover:shadow-2xl transition-all">
+                <div className={`py-3 text-[10px] font-black uppercase text-center tracking-widest flex items-center justify-center gap-2 ${
+                  l.statut === 'Livré' ? 'bg-emerald-500 text-white' : l.statut === 'Livraison' ? 'bg-blue-500 text-white' : 'bg-amber-400 text-white'
+                }`}>
+                  {l.source === 'TikTok' ? <TikTokIcon size={12} /> : <FacebookIcon size={12} />}
+                  {l.statut}
+                </div>
+                <div className="p-8 space-y-6">
+                  <div className="flex justify-between items-start">
+                    <div className="space-y-1">
+                        <h3 className="font-black text-xl text-slate-900 leading-tight">{l.nom}</h3>
+                        <div className="flex items-center gap-2">
+                           <span className="px-2 py-0.5 bg-slate-100 text-slate-500 text-[9px] font-black rounded uppercase">{l.type}</span>
+                           <span className="text-[10px] font-bold text-slate-300">{l.date}</span>
                         </div>
                     </div>
-
-                    <main className="max-w-5xl mx-auto w-full p-6 sm:p-10">
-                        {activeTab === 'commandes' && (
-                            <div className="max-w-md mx-auto glass-card rounded-[2.5rem] p-8 shadow-2xl space-y-6 border-2 border-white">
-                                <h2 className="text-2xl font-black uppercase text-center text-slate-800 tracking-tighter">Encaisser</h2>
-                                <div className="relative">
-                                    <input value={searchTerm} onChange={e => setSearchTerm(e.target.value)} placeholder="Chercher un client..." className="w-full p-4 bg-white rounded-2xl border-2 border-slate-50 font-bold outline-none focus:border-indigo-500 text-sm shadow-inner" />
-                                    {filteredClients.length > 0 && (
-                                        <div className="absolute z-10 w-full mt-2 bg-white rounded-2xl shadow-2xl border p-2 max-h-48 overflow-y-auto">
-                                            {filteredClients.map(c => (
-                                                <div key={c.id} onClick={() => { setOrderForm({...orderForm, nom: c.nom, telephone: c.telephone, lieu: c.lieu || ""}); setSearchTerm(""); }} className="p-3 hover:bg-indigo-50 rounded-xl cursor-pointer flex justify-between items-center transition-colors">
-                                                    <div><div className="font-black text-xs uppercase text-slate-700">{c.nom}</div><div className="text-[10px] text-indigo-500 font-bold">{c.telephone}</div></div>
-                                                    <Icons.Plus size={14} className="text-slate-300"/>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-                                <div className="space-y-4">
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <input value={orderForm.nom} onChange={e => setOrderForm({...orderForm, nom: e.target.value})} placeholder="Client" className="p-4 bg-white rounded-2xl border font-bold text-sm" />
-                                        <input value={orderForm.telephone} onChange={e => setOrderForm({...orderForm, telephone: e.target.value})} placeholder="Mobile" className="p-4 bg-white rounded-2xl border font-bold text-sm" />
-                                    </div>
-                                    <div className="grid grid-cols-2 gap-3">
-                                        <input value={orderForm.lieu} onChange={e => setOrderForm({...orderForm, lieu: e.target.value})} placeholder="Lieu" className="p-4 bg-white rounded-2xl border font-bold text-sm" />
-                                        <select value={orderForm.source} onChange={e => setOrderForm({...orderForm, source: e.target.value})} className="p-4 bg-white rounded-2xl border font-black uppercase text-[10px]">
-                                            <option>Facebook</option><option>TikTok</option>
-                                        </select>
-                                    </div>
-                                    <div className="relative">
-                                        <input type="number" value={orderForm.montant} onChange={e => setOrderForm({...orderForm, montant: e.target.value})} placeholder="0" className="w-full p-6 bg-indigo-600 rounded-[1.5rem] font-black text-4xl text-white text-center outline-none ring-4 ring-indigo-50" />
-                                        <span className="absolute right-6 top-1/2 -translate-y-1/2 font-black text-indigo-200 uppercase text-xs">Ar</span>
-                                    </div>
-                                    <button onClick={handleAddOrder} className="w-full bg-slate-900 text-white py-5 rounded-[1.5rem] font-black uppercase tracking-widest text-[10px] shadow-xl hover:bg-indigo-600 transition-all active:scale-95">Valider la Vente</button>
-                                </div>
-                            </div>
-                        )}
-
-                        {activeTab === 'livraisons' && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {livraisons.sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)).map(l => (
-                                    <div key={l.id} className="glass-card rounded-3xl p-6 shadow-sm border-2 border-white group hover:border-indigo-100 transition-all relative overflow-hidden">
-                                        <div className="flex justify-between items-start mb-4">
-                                            <div className="text-[9px] font-black uppercase px-3 py-1 bg-slate-100 rounded-full text-slate-500">{l.date}</div>
-                                            <div className={l.source === 'TikTok' ? 'text-rose-500' : 'text-blue-600'}>
-                                                {l.source === 'TikTok' ? <Icons.TikTok size={16}/> : <Icons.Facebook size={16}/>}
-                                            </div>
-                                        </div>
-                                        <h3 className="font-black text-lg uppercase tracking-tighter text-slate-800">{l.nom}</h3>
-                                        <p className="text-sm font-bold text-indigo-500 mb-4">{l.telephone}</p>
-                                        <div className="bg-slate-50/50 p-3 rounded-xl text-[10px] font-bold text-slate-400 uppercase mb-6 truncate">{l.lieu || 'Point de vente'}</div>
-                                        <div className="flex justify-between items-center pt-4 border-t">
-                                            <span className="font-black text-xl text-slate-900">{Number(l.montant).toLocaleString()} Ar</span>
-                                            <div className="flex gap-1">
-                                                <button onClick={() => deleteItem('livraisons', l.id)} className="p-2 text-slate-200 hover:text-rose-400 transition-colors"><Icons.Trash2 size={18}/></button>
-                                                {l.statut !== 'Livré' && (
-                                                    <button onClick={() => updateStatus(l.id, l.statut)} className="bg-slate-900 text-white px-4 py-2 rounded-xl text-[9px] font-black uppercase hover:bg-indigo-600 transition-colors">
-                                                        {l.statut === 'Préparation' ? 'Expédier' : 'Finir'}
-                                                    </button>
-                                                )}
-                                                {l.statut === 'Livré' && <span className="text-emerald-500 flex items-center gap-1 font-black text-[9px] uppercase"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"/></svg> OK</span>}
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-
-                        {activeTab === 'finances' && (
-                            <div className="space-y-8">
-                                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                    <div className="glass-card p-8 rounded-[2rem] text-center border-2 border-emerald-50 shadow-inner">
-                                        <div className="text-[10px] font-black text-slate-400 uppercase mb-2 tracking-widest">Recettes (Livrées)</div>
-                                        <div className="text-2xl font-black text-emerald-600">+{stats.entries.toLocaleString()} Ar</div>
-                                    </div>
-                                    <div className="glass-card p-8 rounded-[2rem] text-center border-2 border-rose-50 shadow-inner">
-                                        <div className="text-[10px] font-black text-slate-400 uppercase mb-2 tracking-widest">Charges / Dépenses</div>
-                                        <div className="text-2xl font-black text-rose-500">-{stats.out.toLocaleString()} Ar</div>
-                                    </div>
-                                    <div className="bg-slate-900 p-8 rounded-[2rem] text-center text-white shadow-2xl relative overflow-hidden">
-                                        <div className="text-[10px] font-black opacity-50 uppercase mb-2 tracking-widest">Solde Réel</div>
-                                        <div className="text-3xl font-black">{stats.solde.toLocaleString()} Ar</div>
-                                    </div>
-                                </div>
-                                <div className="max-w-md mx-auto glass-card p-8 rounded-[2.5rem] shadow-xl space-y-4 border-2 border-white">
-                                    <h3 className="font-black uppercase text-[10px] text-center text-slate-400 mb-2">Enregistrer une dépense</h3>
-                                    <input value={depenseForm.motif} onChange={e => setDepenseForm({...depenseForm, motif: e.target.value})} placeholder="Motif (ex: Achat stock, Pub...)" className="w-full p-4 bg-white rounded-xl border-2 border-slate-50 font-bold text-sm" />
-                                    <div className="flex gap-3">
-                                        <input type="number" value={depenseForm.montant} onChange={e => setDepenseForm({...depenseForm, montant: e.target.value})} placeholder="Montant" className="flex-1 p-4 bg-white rounded-xl border-2 border-slate-50 font-bold text-sm" />
-                                        <button onClick={handleAddDepense} className="bg-rose-500 text-white px-8 rounded-xl font-black uppercase text-[10px] shadow-lg hover:bg-rose-600 active:scale-95 transition-all">OK</button>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {activeTab === 'clients' && (
-                            <div className="space-y-10">
-                                {/* Nouveau Formulaire d'ajout client */}
-                                <div className="max-w-xl mx-auto glass-card rounded-[2.5rem] p-8 border-2 border-white shadow-xl">
-                                    <h2 className="text-xl font-black uppercase text-center text-slate-800 tracking-tighter mb-6">Ajouter un nouveau client</h2>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
-                                        <div className="space-y-2">
-                                            <label className="text-[9px] font-black uppercase text-slate-400 ml-2">Nom Complet</label>
-                                            <input value={clientForm.nom} onChange={e => setClientForm({...clientForm, nom: e.target.value})} className="w-full p-4 bg-white rounded-2xl border font-bold text-sm outline-none focus:border-indigo-500" placeholder="Ex: Jean Dupont" />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="text-[9px] font-black uppercase text-slate-400 ml-2">Téléphone</label>
-                                            <input value={clientForm.telephone} onChange={e => setClientForm({...clientForm, telephone: e.target.value})} className="w-full p-4 bg-white rounded-2xl border font-bold text-sm outline-none focus:border-indigo-500" placeholder="03X XX XXX XX" />
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-                                        <div className="space-y-2">
-                                            <label className="text-[9px] font-black uppercase text-slate-400 ml-2">Lieu Habituel</label>
-                                            <input value={clientForm.lieu} onChange={e => setClientForm({...clientForm, lieu: e.target.value})} className="w-full p-4 bg-white rounded-2xl border font-bold text-sm outline-none focus:border-indigo-500" placeholder="Ex: Analakely" />
-                                        </div>
-                                        <div className="space-y-2">
-                                            <label className="text-[9px] font-black uppercase text-slate-400 ml-2">Source</label>
-                                            <select value={clientForm.source} onChange={e => setClientForm({...clientForm, source: e.target.value})} className="w-full p-4 bg-white rounded-2xl border font-black uppercase text-[10px] outline-none">
-                                                <option>Facebook</option><option>TikTok</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <button onClick={handleAddClient} className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] tracking-widest shadow-lg hover:bg-slate-900 transition-all">Enregistrer le Client</button>
-                                </div>
-
-                                <div className="glass-card rounded-[2.5rem] overflow-hidden shadow-sm border-2 border-white">
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-left">
-                                            <thead className="bg-slate-50 text-[10px] font-black uppercase text-slate-400">
-                                                <tr><th className="p-6">Identité</th><th className="p-6">Lieu Habituel</th><th className="p-6">Provenance</th><th className="p-6 text-right">Actions</th></tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-100">
-                                                {clients.map(c => (
-                                                    <tr key={c.id} className="hover:bg-indigo-50/20 transition-colors">
-                                                        <td className="p-6"><div className="font-black text-xs uppercase text-slate-800">{c.nom}</div><div className="text-[10px] text-indigo-500 font-black tracking-widest">{c.telephone}</div></td>
-                                                        <td className="p-6 text-xs font-bold text-slate-500 uppercase">{c.lieu || '---'}</td>
-                                                        <td className="p-6">
-                                                            <span className={`px-3 py-1 rounded-full text-[8px] font-black uppercase border inline-flex items-center gap-1 ${c.source === 'TikTok' ? 'border-rose-200 text-rose-500' : 'border-blue-200 text-blue-500'}`}>
-                                                                {c.source === 'TikTok' ? <Icons.TikTok size={10}/> : <Icons.Facebook size={10}/>} {c.source}
-                                                            </span>
-                                                        </td>
-                                                        <td className="p-6 text-right"><button onClick={() => deleteItem('clients', c.id)} className="text-slate-200 hover:text-rose-500 p-2 transition-colors"><Icons.Trash2 size={16}/></button></td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                    </main>
+                    <button onClick={() => deleteItem('livraisons', l.id)} className="text-slate-100 hover:text-rose-500 transition-colors p-2 hover:bg-rose-50 rounded-xl"><Trash2 size={20} /></button>
+                  </div>
+                  <div className="text-sm text-slate-500 flex items-start gap-2 bg-slate-50 p-4 rounded-2xl italic">
+                    <MapPin size={16} className="text-indigo-400 mt-0.5 flex-shrink-0" /> {l.lieu || 'Adresse non précisée'}
+                  </div>
+                  <div className="pt-4 border-t border-slate-50 flex justify-between items-center">
+                    <div className="font-black text-2xl text-slate-900 tracking-tighter">{(Number(l.montant) || 0).toLocaleString()} <span className="text-xs text-slate-400 ml-1">AR</span></div>
+                    {l.statut !== 'Livré' && (
+                      <button onClick={() => updateStatus(l.id, l.statut)} className="bg-slate-900 text-white p-3 rounded-2xl hover:bg-indigo-600 transition-all shadow-lg active:scale-90">
+                        <ChevronRight size={24} />
+                      </button>
+                    )}
+                  </div>
                 </div>
-            );
-        }
+              </div>
+            ))}
+          </div>
+        )}
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
-    </script>
-</body>
-</html>
+        {activeTab === 'finances' && (
+          <div className="space-y-10">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="bg-white p-8 rounded-[2.5rem] shadow-xl">
+                <div className="text-[10px] font-black uppercase text-slate-400 mb-2 tracking-widest">C.A Livré</div>
+                <div className="text-3xl font-black text-slate-900">{stats.totalLivre.toLocaleString()} Ar</div>
+              </div>
+              <div className="bg-emerald-500 p-8 rounded-[2.5rem] text-white shadow-xl">
+                <div className="text-[10px] font-black uppercase opacity-70 mb-2 tracking-widest">Encaissé</div>
+                <div className="text-3xl font-black">{stats.totalVer.toLocaleString()} Ar</div>
+              </div>
+              <div className="bg-white p-8 rounded-[2.5rem] shadow-xl">
+                <div className="text-[10px] font-black uppercase text-rose-500 mb-2 tracking-widest">Dépenses</div>
+                <div className="text-3xl font-black text-rose-600">{stats.totalDep.toLocaleString()} Ar</div>
+              </div>
+              <div className={`p-8 rounded-[2.5rem] text-white shadow-2xl ${stats.solde >= 0 ? 'bg-indigo-600' : 'bg-rose-600'}`}>
+                <div className="text-[10px] font-black uppercase opacity-70 mb-2 tracking-widest">Solde Net</div>
+                <div className="text-3xl font-black">{stats.solde.toLocaleString()} Ar</div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
+              <div className="bg-white rounded-[3rem] shadow-xl p-8 space-y-6">
+                <h3 className="font-black uppercase text-sm flex items-center gap-3 text-emerald-600 tracking-widest">
+                  <ArrowDownCircle size={20} /> Versement Recette
+                </h3>
+                <div className="flex gap-3">
+                  <input value={vMontant} onChange={e => setVMontant(e.target.value)} type="number" placeholder="Montant..." className="flex-1 p-5 bg-slate-50 rounded-2xl font-black text-xl outline-none" />
+                  <button onClick={addVersement} className="bg-emerald-600 text-white px-8 rounded-2xl font-black">OK</button>
+                </div>
+                <div className="space-y-3 mt-8 max-h-80 overflow-y-auto pr-2 no-scrollbar">
+                  {versements.sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)).map(v => (
+                    <div key={v.id} className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-white">
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">{v.date}</span>
+                      <div className="flex items-center gap-5">
+                        <span className="font-black text-emerald-600">{(Number(v.montant) || 0).toLocaleString()} Ar</span>
+                        <button onClick={() => deleteItem('versements', v.id)} className="text-slate-200 hover:text-rose-500"><X size={18} /></button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="bg-white rounded-[3rem] shadow-xl p-8 space-y-6">
+                <h3 className="font-black uppercase text-sm flex items-center gap-3 text-rose-600 tracking-widest">
+                  <ArrowUpCircle size={20} /> Sortie de Caisse
+                </h3>
+                <div className="space-y-4">
+                  <input value={dForm.motif} onChange={e => setDForm({...dForm, motif: e.target.value})} type="text" placeholder="Motif..." className="w-full p-5 bg-slate-50 rounded-2xl font-bold" />
+                  <div className="flex gap-3">
+                    <input value={dForm.montant} onChange={e => setDForm({...dForm, montant: e.target.value})} type="number" placeholder="Montant..." className="flex-1 p-5 bg-slate-50 rounded-2xl font-black text-xl outline-none" />
+                    <button onClick={addDepense} className="bg-rose-600 text-white px-8 rounded-2xl font-black">OK</button>
+                  </div>
+                </div>
+                <div className="space-y-3 mt-8 max-h-80 overflow-y-auto pr-2 no-scrollbar">
+                  {depenses.sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)).map(d => (
+                    <div key={d.id} className="p-4 bg-slate-50 rounded-2xl border border-white flex justify-between">
+                      <div>
+                        <div className="font-black text-slate-800 text-sm">{d.motif}</div>
+                        <div className="text-[9px] font-bold text-slate-300 uppercase">{d.date}</div>
+                      </div>
+                      <div className="flex items-center gap-5">
+                        <span className="font-black text-rose-600">{(Number(d.montant) || 0).toLocaleString()} Ar</span>
+                        <button onClick={() => deleteItem('depenses', d.id)} className="text-slate-200 hover:text-rose-500"><X size={18} /></button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {activeTab === 'clients' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+            <div className="lg:col-span-1">
+              <div className="bg-white rounded-[3rem] p-10 shadow-2xl sticky top-44">
+                <h3 className="font-black uppercase mb-8 flex items-center gap-3 text-indigo-600">
+                   Nouveau Client
+                </h3>
+                <div className="space-y-5">
+                  <input value={clientForm.nom} onChange={e => setClientForm({...clientForm, nom: e.target.value})} type="text" placeholder="Nom Complet" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" />
+                  <input value={clientForm.tel} onChange={e => setClientForm({...clientForm, tel: e.target.value})} type="text" placeholder="Téléphone" className="w-full p-5 bg-slate-50 rounded-2xl font-mono" />
+                  <input value={clientForm.lieu} onChange={e => setClientForm({...clientForm, lieu: e.target.value})} type="text" placeholder="Lieu" className="w-full p-5 bg-slate-50 rounded-2xl" />
+                  
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-black text-slate-400 uppercase ml-4">Provenance</label>
+                    <div className="flex bg-slate-50 rounded-2xl p-1 gap-1">
+                      <button 
+                        onClick={() => setClientForm({...clientForm, source: 'Facebook'})}
+                        className={`flex-1 flex items-center justify-center py-4 rounded-xl transition-all ${clientForm.source === 'Facebook' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}`}
+                      >
+                        <FacebookIcon size={20} />
+                      </button>
+                      <button 
+                        onClick={() => setClientForm({...clientForm, source: 'TikTok'})}
+                        className={`flex-1 flex items-center justify-center py-4 rounded-xl transition-all ${clientForm.source === 'TikTok' ? 'bg-white shadow-sm text-rose-500' : 'text-slate-400'}`}
+                      >
+                        <TikTokIcon size={20} />
+                      </button>
+                    </div>
+                  </div>
+
+                  <button onClick={addClient} className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black uppercase tracking-widest hover:bg-indigo-600 transition-all">Ajouter</button>
+                </div>
+              </div>
+            </div>
+            <div className="lg:col-span-2 bg-white rounded-[3rem] shadow-xl overflow-hidden h-fit">
+              <div className="p-8 border-b bg-slate-50/50">
+                <h3 className="font-black uppercase text-sm text-slate-400">Répertoire ({clients.length})</h3>
+              </div>
+              <table className="w-full text-left">
+                <thead className="text-[10px] uppercase text-slate-300 font-black border-b">
+                  <tr>
+                    <th className="px-8 py-5">Source</th>
+                    <th className="px-8 py-5">Nom</th>
+                    <th className="px-8 py-5">Contact</th>
+                    <th className="px-8 py-5 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y">
+                  {clients.sort((a,b) => (a.nom || "").localeCompare(b.nom || "")).map(c => (
+                    <tr key={c.id} className="hover:bg-indigo-50/30">
+                      <td className="px-8 py-6">
+                        {c.source === 'TikTok' ? 
+                          <div className="bg-rose-50 text-rose-500 w-10 h-10 rounded-xl flex items-center justify-center shadow-sm">
+                            <TikTokIcon size={18} />
+                          </div> : 
+                          <div className="bg-indigo-50 text-indigo-600 w-10 h-10 rounded-xl flex items-center justify-center shadow-sm">
+                            <FacebookIcon size={18} />
+                          </div>
+                        }
+                      </td>
+                      <td className="px-8 py-6">
+                         <div className="font-black text-slate-800">{c.nom}</div>
+                         <div className="text-[10px] text-slate-400 font-bold uppercase">{c.lieu || 'Zone non définie'}</div>
+                      </td>
+                      <td className="px-8 py-6 font-mono text-indigo-600 font-black">{c.telephone || c.tel}</td>
+                      <td className="px-8 py-6 text-right">
+                        <button onClick={() => deleteItem('clients', c.id)} className="text-slate-100 hover:text-rose-500 p-3"><Trash2 size={20} /></button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        )}
+      </main>
+    </div>
+  );
+}
