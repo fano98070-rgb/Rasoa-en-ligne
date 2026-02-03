@@ -138,6 +138,7 @@
         };
 
         const LOGO_URL = "https://lh3.googleusercontent.com/u/0/d/14wx6DlgO3bZ6rSIhQQz6wRzlLrBgwNAp=w1000-h1000";
+        const APP_ID = 'rasoa-pro-v2'; // Utilisation de la base V2 demandée
 
         function App() {
             const [user, setUser] = useState(null);
@@ -167,7 +168,6 @@
                             setLoading(false);
                         });
                     }
-                    // Si après 5 secondes Firebase ne répond pas, on force l'entrée
                     if (attempts > 50) { 
                         clearInterval(checkFirebase);
                         setLoading(false); 
@@ -176,14 +176,12 @@
                 return () => clearInterval(checkFirebase);
             }, []);
 
-            // Écoute des données
+            // Écoute des données (V2)
             useEffect(() => {
                 if (!user || !window.FirebaseSDK || !window.FirebaseSDK.isReady) return;
-                const { db, collection, onSnapshot } = window.FirebaseSDK;
+                const { db, collection, onSnapshot, query } = window.FirebaseSDK;
                 
-                // On cible l'ID mentionné par l'utilisateur: rasoa-pro-v1
-                const appId = 'rasoa-pro-v1';
-                const getColRef = (name) => collection(db, 'artifacts', appId, 'public', 'data', name);
+                const getColRef = (name) => collection(db, 'artifacts', APP_ID, 'public', 'data', name);
                 
                 const unsubLiv = onSnapshot(getColRef('livraisons'), 
                     (s) => setLivraisons(s.docs.map(d => ({ id: d.id, ...d.data() }))),
@@ -218,12 +216,11 @@
 
             const addOrder = async () => {
                 if (!orderForm.nom || !orderForm.montant) return;
-                if (!window.FirebaseSDK?.isReady) return;
+                if (!window.FirebaseSDK?.isReady || !user) return;
                 
                 const { db, collection, addDoc, serverTimestamp } = window.FirebaseSDK;
-                const appId = 'rasoa-pro-v1';
                 try {
-                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'livraisons'), {
+                    await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'livraisons'), {
                         ...orderForm,
                         montant: Number(orderForm.montant),
                         statut: "Préparation",
@@ -231,8 +228,9 @@
                         date: new Date().toLocaleDateString('fr-FR')
                     });
                     
+                    // Vérifier si le client existe déjà
                     if (!clients.find(c => c.telephone === orderForm.telephone)) {
-                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'clients'), {
+                        await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'clients'), {
                             nom: orderForm.nom,
                             telephone: orderForm.telephone,
                             lieu: orderForm.lieu,
@@ -243,45 +241,53 @@
                     }
                     setOrderForm({ nom: "", telephone: "", montant: "", lieu: "", source: "Facebook", remarque: "", isColis: false });
                     setActiveTab("livraisons");
-                } catch(e) { console.error(e); }
+                } catch(e) { console.error("Erreur commande:", e); }
             };
 
             const addManualClient = async () => {
                 if (!clientForm.nom || !clientForm.telephone) return;
+                if (!window.FirebaseSDK?.isReady || !user) return;
+                
                 const { db, collection, addDoc, serverTimestamp } = window.FirebaseSDK;
-                const appId = 'rasoa-pro-v1';
-                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'clients'), {
-                    ...clientForm,
-                    timestamp: serverTimestamp()
-                });
-                setClientForm({ nom: "", telephone: "", lieu: "", source: "Facebook", remarque: "" });
+                try {
+                    await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'clients'), {
+                        ...clientForm,
+                        timestamp: serverTimestamp()
+                    });
+                    setClientForm({ nom: "", telephone: "", lieu: "", source: "Facebook", remarque: "" });
+                } catch (e) {
+                    console.error("Erreur ajout client:", e);
+                }
             };
 
             const addDepense = async () => {
                 if (!depenseForm.motif || !depenseForm.montant) return;
+                if (!window.FirebaseSDK?.isReady || !user) return;
+                
                 const { db, collection, addDoc, serverTimestamp } = window.FirebaseSDK;
-                const appId = 'rasoa-pro-v1';
-                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'depenses'), { 
-                    ...depenseForm, 
-                    montant: Number(depenseForm.montant), 
-                    timestamp: serverTimestamp(),
-                    date: new Date().toLocaleDateString('fr-FR')
-                });
-                setDepenseForm({ motif: "", montant: "" });
+                try {
+                    await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'depenses'), { 
+                        ...depenseForm, 
+                        montant: Number(depenseForm.montant), 
+                        timestamp: serverTimestamp(),
+                        date: new Date().toLocaleDateString('fr-FR')
+                    });
+                    setDepenseForm({ motif: "", montant: "" });
+                } catch(e) { console.error("Erreur dépense:", e); }
             };
 
             const updateStatus = async (id, current) => {
+                if (!window.FirebaseSDK?.isReady || !user) return;
                 const { db, doc, updateDoc } = window.FirebaseSDK;
-                const appId = 'rasoa-pro-v1';
                 const next = current === "Préparation" ? "Livraison" : "Livré";
-                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', id), { statut: next });
+                await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'livraisons', id), { statut: next });
             };
 
             const deleteItem = async (col, id) => {
+                if (!window.FirebaseSDK?.isReady || !user) return;
                 if (confirm("Supprimer définitivement ?")) {
                     const { db, doc, deleteDoc } = window.FirebaseSDK;
-                    const appId = 'rasoa-pro-v1';
-                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id));
+                    await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', col, id));
                 }
             };
 
@@ -319,7 +325,7 @@
                             <img src={LOGO_URL} className="w-12 h-12 rounded-full border shadow-sm" />
                             <div>
                                 <h1 className="font-black text-xl tracking-tighter uppercase text-slate-800">Rasoa <span className="text-indigo-600">Pro</span></h1>
-                                <p className="text-[9px] font-bold text-emerald-500 uppercase tracking-widest">Base Connectée (V1)</p>
+                                <p className="text-[9px] font-bold text-indigo-500 uppercase tracking-widest">Base Connectée (V2)</p>
                             </div>
                         </div>
                         <button onClick={() => setIsAdmin(false)} className="text-slate-500 font-black text-[10px] uppercase border-2 border-slate-200 px-6 py-3 rounded-full hover:bg-slate-800 hover:text-white hover:border-slate-800 transition-all">Quitter</button>
@@ -400,7 +406,7 @@
 
                         {activeTab === 'livraisons' && (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in duration-500">
-                                {livraisons.length === 0 && <div className="col-span-full text-center py-32 text-slate-300 font-black uppercase text-[10px] tracking-widest">Aucune donnée trouvée sur Rasoa Pro V1</div>}
+                                {livraisons.length === 0 && <div className="col-span-full text-center py-32 text-slate-300 font-black uppercase text-[10px] tracking-widest">Aucune donnée trouvée sur V2</div>}
                                 {livraisons.sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)).map(l => (
                                     <div key={l.id} className="glass-card rounded-[2.5rem] border-2 p-8 shadow-sm hover:shadow-2xl transition-all relative overflow-hidden group border-white">
                                         {l.isColis && <div className="absolute top-6 right-6 bg-indigo-600 text-white px-4 py-1.5 rounded-full text-[9px] font-black uppercase flex items-center gap-2"><Icons.Package size={12} /> Colis</div>}
@@ -433,11 +439,11 @@
                             <div className="space-y-8 animate-in fade-in duration-500">
                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                                     <div className="glass-card p-10 rounded-[3rem] shadow-sm border-white">
-                                        <div className="text-[10px] font-black text-slate-400 uppercase mb-3 tracking-widest">Total Ventes Livrées</div>
+                                        <div className="text-[10px] font-black text-slate-400 uppercase mb-3 tracking-widest">Ventes Livrées</div>
                                         <div className="text-3xl font-black text-emerald-600">+{stats.entrees.toLocaleString()} Ar</div>
                                     </div>
                                     <div className="glass-card p-10 rounded-[3rem] shadow-sm border-white">
-                                        <div className="text-[10px] font-black text-slate-400 uppercase mb-3 tracking-widest">Total Dépenses</div>
+                                        <div className="text-[10px] font-black text-slate-400 uppercase mb-3 tracking-widest">Dépenses</div>
                                         <div className="text-3xl font-black text-rose-500">-{stats.depenses.toLocaleString()} Ar</div>
                                     </div>
                                     <div className="bg-slate-900 p-10 rounded-[3rem] text-white shadow-2xl shadow-indigo-100">
@@ -448,10 +454,10 @@
                                 <div className="glass-card rounded-[3rem] p-10 shadow-sm border-white max-w-2xl mx-auto">
                                     <h3 className="font-black uppercase text-[11px] text-slate-800 mb-8 tracking-widest text-center">Déclarer une dépense</h3>
                                     <div className="space-y-4">
-                                        <input value={depenseForm.motif} onChange={e => setDepenseForm({...depenseForm, motif: e.target.value})} placeholder="Nature de la dépense (ex: Essence, Publicité...)" className="w-full p-5 bg-white rounded-2xl border-2 border-slate-50 font-bold outline-none focus:border-rose-100" />
+                                        <input value={depenseForm.motif} onChange={e => setDepenseForm({...depenseForm, motif: e.target.value})} placeholder="Nature (ex: Essence, Pub...)" className="w-full p-5 bg-white rounded-2xl border-2 border-slate-50 font-bold outline-none" />
                                         <div className="flex gap-4">
-                                            <input type="number" value={depenseForm.montant} onChange={e => setDepenseForm({...depenseForm, montant: e.target.value})} placeholder="Montant" className="flex-1 p-5 bg-white rounded-2xl border-2 border-slate-50 font-bold outline-none text-rose-500" />
-                                            <button onClick={addDepense} className="bg-rose-500 text-white px-10 rounded-2xl font-black uppercase text-[11px] shadow-lg active:scale-95 transition-all">Valider</button>
+                                            <input type="number" value={depenseForm.montant} onChange={e => setDepenseForm({...depenseForm, montant: e.target.value})} placeholder="Montant" className="flex-1 p-5 bg-white rounded-2xl border-2 border-slate-50 font-bold outline-none" />
+                                            <button onClick={addDepense} className="bg-rose-500 text-white px-10 rounded-2xl font-black uppercase text-[11px] shadow-lg">Valider</button>
                                         </div>
                                     </div>
                                 </div>
@@ -461,19 +467,17 @@
                         {activeTab === 'clients' && (
                             <div className="space-y-8 animate-in fade-in duration-500">
                                 <div className="glass-card rounded-[3rem] p-8 shadow-sm border-white max-w-4xl mx-auto">
-                                    <h3 className="font-black uppercase text-[11px] text-slate-800 mb-6 tracking-widest text-center flex items-center justify-center gap-3">
-                                        <Icons.Plus size={16} /> Nouveau client manuel
-                                    </h3>
+                                    <h3 className="font-black uppercase text-[11px] text-slate-800 mb-6 tracking-widest text-center">Nouveau client</h3>
                                     <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                                        <input value={clientForm.nom} onChange={e => setClientForm({...clientForm, nom: e.target.value})} placeholder="Nom complet" className="p-4 bg-white rounded-2xl border border-slate-100 font-bold outline-none" />
-                                        <input value={clientForm.telephone} onChange={e => setClientForm({...clientForm, telephone: e.target.value})} placeholder="Téléphone" className="p-4 bg-white rounded-2xl border border-slate-100 font-bold outline-none" />
-                                        <input value={clientForm.lieu} onChange={e => setClientForm({...clientForm, lieu: e.target.value})} placeholder="Localisation" className="p-4 bg-white rounded-2xl border border-slate-100 font-bold outline-none" />
+                                        <input value={clientForm.nom} onChange={e => setClientForm({...clientForm, nom: e.target.value})} placeholder="Nom" className="p-4 bg-white rounded-2xl border border-slate-100 font-bold" />
+                                        <input value={clientForm.telephone} onChange={e => setClientForm({...clientForm, telephone: e.target.value})} placeholder="Téléphone" className="p-4 bg-white rounded-2xl border border-slate-100 font-bold" />
+                                        <input value={clientForm.lieu} onChange={e => setClientForm({...clientForm, lieu: e.target.value})} placeholder="Lieu" className="p-4 bg-white rounded-2xl border border-slate-100 font-bold" />
                                         <div className="flex gap-1 p-1 bg-slate-100 rounded-2xl">
-                                            <button onClick={() => setClientForm({...clientForm, source: 'Facebook'})} className={`flex-1 flex items-center justify-center rounded-xl transition-all ${clientForm.source === 'Facebook' ? 'bg-blue-600 text-white shadow-sm' : 'text-slate-400'}`}><Icons.Facebook size={16} /></button>
-                                            <button onClick={() => setClientForm({...clientForm, source: 'TikTok'})} className={`flex-1 flex items-center justify-center rounded-xl transition-all ${clientForm.source === 'TikTok' ? 'bg-slate-900 text-white shadow-sm' : 'text-slate-400'}`}><Icons.TikTok size={16} /></button>
+                                            <button onClick={() => setClientForm({...clientForm, source: 'Facebook'})} className={`flex-1 flex items-center justify-center rounded-xl ${clientForm.source === 'Facebook' ? 'bg-blue-600 text-white' : 'text-slate-400'}`}><Icons.Facebook size={16} /></button>
+                                            <button onClick={() => setClientForm({...clientForm, source: 'TikTok'})} className={`flex-1 flex items-center justify-center rounded-xl ${clientForm.source === 'TikTok' ? 'bg-slate-900 text-white' : 'text-slate-400'}`}><Icons.TikTok size={16} /></button>
                                         </div>
                                     </div>
-                                    <button onClick={addManualClient} className="w-full mt-4 bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase text-[11px] tracking-widest shadow-xl active:scale-95 transition-all">Enregistrer Client</button>
+                                    <button onClick={addManualClient} className="w-full mt-4 bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase text-[11px] shadow-xl">Enregistrer Client</button>
                                 </div>
 
                                 <div className="glass-card rounded-[3rem] overflow-hidden shadow-sm border-white border-2">
@@ -483,19 +487,17 @@
                                                 <tr><th className="p-8">Identité</th><th className="p-8">Contact</th><th className="p-8">Source</th><th className="p-8 text-right">Actions</th></tr>
                                             </thead>
                                             <tbody className="divide-y-2 divide-slate-50 font-bold">
-                                                {clients.sort((a,b) => (a.nom || "").localeCompare(b.nom || "")).map(c => (
+                                                {clients.map(c => (
                                                     <tr key={c.id} className="hover:bg-white transition-colors">
                                                         <td className="p-8 uppercase text-slate-800">{c.nom}</td>
                                                         <td className="p-8 text-indigo-600 font-black">{c.telephone}</td>
                                                         <td className="p-8">
-                                                            {c.source === 'TikTok' ? (
-                                                                <div className="flex items-center gap-2 text-rose-500 text-[10px] uppercase font-black"><Icons.TikTok size={14}/> TikTok</div>
-                                                            ) : (
-                                                                <div className="flex items-center gap-2 text-blue-600 text-[10px] uppercase font-black"><Icons.Facebook size={14}/> Facebook</div>
-                                                            )}
+                                                            <div className="flex items-center gap-2 text-[10px] uppercase font-black">
+                                                                {c.source === 'TikTok' ? <><Icons.TikTok size={14} className="text-rose-500"/> TikTok</> : <><Icons.Facebook size={14} className="text-blue-600"/> Facebook</>}
+                                                            </div>
                                                         </td>
                                                         <td className="p-8 text-right">
-                                                            <button onClick={() => deleteItem('clients', c.id)} className="p-3 text-slate-200 hover:text-rose-500 hover:bg-rose-50 rounded-xl transition-all"><Icons.Trash2 size={18}/></button>
+                                                            <button onClick={() => deleteItem('clients', c.id)} className="p-3 text-slate-200 hover:text-rose-500"><Icons.Trash2 size={18}/></button>
                                                         </td>
                                                     </tr>
                                                 ))}
