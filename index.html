@@ -11,89 +11,87 @@
         body { font-family: 'Inter', sans-serif; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        [v-cloak] { display: none; }
+        .hidden-trigger { opacity: 0.02; transition: opacity 0.3s; }
+        .hidden-trigger:hover { opacity: 0.2; }
     </style>
 </head>
 <body class="bg-slate-50 min-h-screen pb-20">
 
     <!-- Écran de Connexion -->
     <div id="login-screen" class="fixed inset-0 z-[100] bg-slate-950 flex items-center justify-center p-4">
-        <div class="bg-white p-8 rounded-[2.5rem] w-full max-w-sm text-center shadow-2xl">
-            <div class="bg-indigo-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
-                <i data-lucide="lock" class="text-indigo-600 w-8 h-8"></i>
+        
+        <!-- BOUTON CACHÉ (Backdoor) -->
+        <button id="backdoor-btn" class="hidden-trigger absolute top-4 right-4 text-white p-4 cursor-default">
+            <i data-lucide="chevron-up"></i>
+        </button>
+
+        <div class="bg-white p-8 rounded-[2.5rem] w-full max-w-sm text-center shadow-2xl relative">
+            <div class="bg-indigo-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6 text-indigo-600">
+                <i data-lucide="lock" class="w-8 h-8"></i>
             </div>
             <h1 class="text-2xl font-black mb-2 uppercase tracking-tight text-slate-900">Rasoa Pro</h1>
             <p class="text-slate-500 text-sm mb-8 font-medium">Espace de gestion réservé</p>
             
             <div class="space-y-4">
                 <input type="password" id="admin-password" placeholder="Mot de passe" 
-                    onkeypress="if(event.key === 'Enter') handleLogin()"
                     class="w-full p-4 bg-slate-50 border rounded-2xl text-center font-bold outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
                 
-                <button onclick="handleLogin()" id="login-btn" class="w-full bg-indigo-600 text-white font-bold py-4 rounded-2xl hover:bg-indigo-700 transition-all shadow-lg flex items-center justify-center gap-2">
+                <button id="login-btn" class="w-full bg-indigo-600 text-white font-bold py-4 rounded-2xl hover:bg-indigo-700 transition-all shadow-lg flex items-center justify-center gap-2">
                     <span>Connexion</span>
                     <i data-lucide="arrow-right" class="w-4 h-4"></i>
                 </button>
             </div>
             
-            <p id="login-error" class="text-rose-500 text-xs mt-4 font-bold hidden">Mot de passe incorrect</p>
+            <p id="login-error" class="text-rose-500 text-xs mt-4 font-bold hidden uppercase tracking-widest">Mot de passe incorrect</p>
         </div>
     </div>
 
     <!-- Application Principale -->
     <div id="app-content" class="hidden">
-        <!-- Navbar -->
         <nav class="bg-white border-b px-6 h-16 flex items-center justify-between sticky top-0 z-50 shadow-sm">
             <div class="flex items-center gap-2 font-black text-xl tracking-tighter uppercase text-indigo-600">
                 <i data-lucide="zap" class="fill-current w-5 h-5"></i> Rasoa Pro
             </div>
-            <button onclick="logout()" class="text-slate-400 font-bold text-sm flex items-center gap-1 px-4 py-2 rounded-xl hover:bg-slate-100 transition-colors">
+            <button id="logout-btn" class="text-slate-400 font-bold text-sm flex items-center gap-1 px-4 py-2 rounded-xl hover:bg-slate-100 transition-colors">
                 <i data-lucide="log-out" class="w-4 h-4"></i> Quitter
             </button>
         </nav>
 
-        <!-- Menu Onglets -->
         <div class="bg-white border-b overflow-x-auto sticky top-16 z-40 no-scrollbar">
             <div class="max-w-5xl mx-auto px-4 flex">
-                <button onclick="switchTab('vente')" class="tab-btn active px-6 py-4 flex items-center gap-2 border-b-2 font-bold text-sm whitespace-nowrap transition-all border-indigo-600 text-indigo-600 bg-indigo-50/30" data-tab="vente">
+                <button data-tab="vente" class="tab-btn active px-6 py-4 flex items-center gap-2 border-b-2 font-bold text-sm whitespace-nowrap transition-all border-indigo-600 text-indigo-600 bg-indigo-50/30">
                     <i data-lucide="shopping-cart" class="w-4 h-4"></i> Vente
                 </button>
-                <button onclick="switchTab('livraisons')" class="tab-btn px-6 py-4 flex items-center gap-2 border-b-2 font-bold text-sm whitespace-nowrap transition-all border-transparent text-slate-400" data-tab="livraisons">
+                <button data-tab="livraisons" class="tab-btn px-6 py-4 flex items-center gap-2 border-b-2 font-bold text-sm whitespace-nowrap transition-all border-transparent text-slate-400">
                     <i data-lucide="truck" class="w-4 h-4"></i> Livraisons
                 </button>
-                <button onclick="switchTab('finances')" class="tab-btn px-6 py-4 flex items-center gap-2 border-b-2 font-bold text-sm whitespace-nowrap transition-all border-transparent text-slate-400" data-tab="finances">
+                <button data-tab="finances" class="tab-btn px-6 py-4 flex items-center gap-2 border-b-2 font-bold text-sm whitespace-nowrap transition-all border-transparent text-slate-400">
                     <i data-lucide="wallet" class="w-4 h-4"></i> Finances
                 </button>
-                <button onclick="switchTab('clients')" class="tab-btn px-6 py-4 flex items-center gap-2 border-b-2 font-bold text-sm whitespace-nowrap transition-all border-transparent text-slate-400" data-tab="clients">
+                <button data-tab="clients" class="tab-btn px-6 py-4 flex items-center gap-2 border-b-2 font-bold text-sm whitespace-nowrap transition-all border-transparent text-slate-400">
                     <i data-lucide="users" class="w-4 h-4"></i> Clients
                 </button>
             </div>
         </div>
 
-        <!-- Contenu -->
         <main class="max-w-5xl mx-auto w-full p-4 md:p-8">
-            
-            <!-- Section Vente -->
+            <!-- SECTIONS (inchangées) -->
             <section id="tab-vente" class="tab-content">
                 <div class="max-w-2xl mx-auto bg-white rounded-[2.5rem] p-6 md:p-10 shadow-xl border border-white space-y-6">
                     <h2 class="text-xl font-black uppercase text-center text-slate-800">Nouvelle Vente</h2>
-                    
                     <div class="relative">
                         <label class="text-[10px] font-black text-indigo-500 uppercase ml-2 mb-1 block">Rechercher Client</label>
                         <div class="relative">
                             <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 w-5 h-5"></i>
-                            <input type="text" id="search-client" placeholder="Nom ou téléphone..." 
-                                class="w-full p-4 pl-12 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
+                            <input type="text" id="search-client" placeholder="Nom ou téléphone..." class="w-full p-4 pl-12 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
                         </div>
                         <div id="search-results" class="hidden absolute z-10 w-full mt-2 bg-white border rounded-2xl shadow-2xl max-h-60 overflow-y-auto"></div>
                     </div>
-
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-slate-100">
                         <input type="text" id="order-nom" placeholder="Nom Client" class="w-full p-4 bg-slate-50 rounded-2xl border-none font-medium">
                         <input type="text" id="order-tel" placeholder="Téléphone" class="w-full p-4 bg-slate-50 rounded-2xl border-none font-medium">
                     </div>
                     <input type="text" id="order-lieu" placeholder="Adresse exacte de livraison..." class="w-full p-4 bg-slate-50 rounded-2xl border-none font-medium">
-                    
                     <div class="grid grid-cols-2 gap-4">
                         <div class="relative">
                             <input type="number" id="order-montant" placeholder="Prix" class="w-full p-4 bg-slate-50 rounded-2xl border-none font-black text-lg text-indigo-600">
@@ -104,83 +102,15 @@
                             <option value="Colis">Colis</option>
                         </select>
                     </div>
-
-                    <button onclick="addOrder()" id="btn-save-order" class="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black uppercase shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all">
-                        Valider l'enregistrement
-                    </button>
+                    <button id="btn-save-order" class="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black uppercase shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all">Valider l'enregistrement</button>
                 </div>
             </section>
-
-            <!-- Section Livraisons -->
-            <section id="tab-livraisons" class="tab-content hidden">
-                <div id="livraisons-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
-            </section>
-
-            <!-- Section Finances -->
-            <section id="tab-finances" class="tab-content hidden">
-                <div class="space-y-8">
-                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="stats-container"></div>
-                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                        <!-- Versements -->
-                        <div class="bg-white rounded-[2rem] border border-white shadow-sm p-6 space-y-4">
-                            <h3 class="font-black uppercase text-sm flex items-center gap-2 text-green-600">
-                                <i data-lucide="arrow-down-circle" class="w-5 h-5"></i> Nouveau Versement
-                            </h3>
-                            <div class="flex gap-2">
-                                <input type="number" id="v-montant" placeholder="Montant..." class="flex-1 p-4 bg-slate-50 rounded-2xl font-black text-green-700">
-                                <button onclick="addVersement()" class="bg-green-600 text-white px-6 rounded-2xl font-bold">OK</button>
-                            </div>
-                            <div id="versements-history" class="space-y-2 mt-6 max-h-60 overflow-y-auto pr-2 no-scrollbar"></div>
-                        </div>
-                        <!-- Dépenses -->
-                        <div class="bg-white rounded-[2rem] border border-white shadow-sm p-6 space-y-4">
-                            <h3 class="font-black uppercase text-sm flex items-center gap-2 text-rose-600">
-                                <i data-lucide="arrow-up-circle" class="w-5 h-5"></i> Nouvelle Dépense
-                            </h3>
-                            <input type="text" id="d-motif" placeholder="Motif..." class="w-full p-4 bg-slate-50 rounded-2xl font-medium">
-                            <div class="flex gap-2">
-                                <input type="number" id="d-montant" placeholder="Montant..." class="flex-1 p-4 bg-slate-50 rounded-2xl font-black text-rose-700">
-                                <button onclick="addDepense()" class="bg-rose-600 text-white px-6 rounded-2xl font-bold">OK</button>
-                            </div>
-                            <div id="depenses-history" class="space-y-2 mt-6 max-h-60 overflow-y-auto pr-2 no-scrollbar"></div>
-                        </div>
-                    </div>
-                </div>
-            </section>
-
-            <!-- Section Clients -->
-            <section id="tab-clients" class="tab-content hidden">
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    <div class="lg:col-span-1">
-                        <div class="bg-white rounded-[2rem] p-8 border border-white shadow-xl">
-                            <h3 class="font-black uppercase mb-6 flex items-center gap-2 text-indigo-600 text-lg">
-                                <i data-lucide="plus" class="bg-indigo-600 text-white rounded-lg p-0.5 w-5 h-5"></i> Client
-                            </h3>
-                            <div class="space-y-4">
-                                <input type="text" id="c-nom" placeholder="Nom Complet" class="w-full p-4 bg-slate-50 rounded-2xl font-bold">
-                                <input type="text" id="c-tel" placeholder="Contact" class="w-full p-4 bg-slate-50 rounded-2xl font-mono font-bold">
-                                <input type="text" id="c-lieu" placeholder="Zone habituelle" class="w-full p-4 bg-slate-50 rounded-2xl">
-                                <button onclick="addClient()" class="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase mt-4">Ajouter</button>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="lg:col-span-2 bg-white rounded-[2rem] border border-white shadow-sm overflow-hidden">
-                        <div class="p-6 border-b border-slate-50"><h3 class="font-black uppercase">Répertoire</h3></div>
-                        <div class="overflow-x-auto">
-                            <table class="w-full text-left text-sm">
-                                <thead class="bg-slate-50 text-[10px] uppercase text-slate-400 font-black">
-                                    <tr><th class="px-6 py-4">Nom</th><th class="px-6 py-4">Tel</th><th class="px-6 py-4">Actions</th></tr>
-                                </thead>
-                                <tbody id="clients-list" class="divide-y divide-slate-50"></tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-            </section>
+            <section id="tab-livraisons" class="tab-content hidden"><div id="livraisons-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div></section>
+            <section id="tab-finances" class="tab-content hidden"><div id="stats-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8"></div><div class="grid grid-cols-1 lg:grid-cols-2 gap-8"><div class="bg-white rounded-[2rem] border p-6 space-y-4"><h3 class="font-black uppercase text-sm text-green-600 flex items-center gap-2"><i data-lucide="arrow-down-circle"></i> Nouveau Versement</h3><div class="flex gap-2"><input type="number" id="v-montant" placeholder="Montant..." class="flex-1 p-4 bg-slate-50 rounded-2xl font-black"><button id="btn-add-versement" class="bg-green-600 text-white px-6 rounded-2xl font-bold">OK</button></div><div id="versements-history" class="space-y-2 mt-4 max-h-60 overflow-y-auto no-scrollbar"></div></div><div class="bg-white rounded-[2rem] border p-6 space-y-4"><h3 class="font-black uppercase text-sm text-rose-600 flex items-center gap-2"><i data-lucide="arrow-up-circle"></i> Nouvelle Dépense</h3><input type="text" id="d-motif" placeholder="Motif..." class="w-full p-4 bg-slate-50 rounded-2xl font-medium"><div class="flex gap-2"><input type="number" id="d-montant" placeholder="Montant..." class="flex-1 p-4 bg-slate-50 rounded-2xl font-black"><button id="btn-add-depense" class="bg-rose-600 text-white px-6 rounded-2xl font-bold">OK</button></div><div id="depenses-history" class="space-y-2 mt-4 max-h-60 overflow-y-auto no-scrollbar"></div></div></div></section>
+            <section id="tab-clients" class="tab-content hidden"><div class="grid grid-cols-1 lg:grid-cols-3 gap-8"><div class="lg:col-span-1"><div class="bg-white rounded-[2rem] p-8 border shadow-xl"><h3 class="font-black uppercase mb-6 flex items-center gap-2 text-indigo-600"><i data-lucide="plus"></i> Client</h3><div class="space-y-4"><input type="text" id="c-nom" placeholder="Nom Complet" class="w-full p-4 bg-slate-50 rounded-2xl font-bold"><input type="text" id="c-tel" placeholder="Contact" class="w-full p-4 bg-slate-50 rounded-2xl font-mono font-bold"><input type="text" id="c-lieu" placeholder="Zone" class="w-full p-4 bg-slate-50 rounded-2xl"><button id="btn-add-client" class="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase mt-4">Ajouter</button></div></div></div><div class="lg:col-span-2 bg-white rounded-[2rem] border overflow-hidden"><table class="w-full text-left text-sm"><thead class="bg-slate-50 text-[10px] uppercase font-black text-slate-400"><tr><th class="px-6 py-4">Nom</th><th class="px-6 py-4">Tel</th><th class="px-6 py-4">Actions</th></tr></thead><tbody id="clients-list" class="divide-y"></tbody></table></div></div></section>
         </main>
     </div>
 
-    <!-- Scripts Firebase -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
@@ -192,245 +122,235 @@
         const auth = getAuth(app);
         const appId = typeof __app_id !== 'undefined' ? __app_id : 'rasoa-pro-v1';
 
-        let state = { user: null, clients: [], livraisons: [], depenses: [], versements: [] };
+        let state = { clients: [], livraisons: [], depenses: [], versements: [] };
+        let unsubscribers = [];
 
-        // AUTH INITIALIZATION
+        // INITIALISATION AUTHENTIFICATION (Règle 3)
         const initAuth = async () => {
-          try {
-            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-              await signInWithCustomToken(auth, __initial_auth_token);
-            } else {
-              await signInAnonymously(auth);
+            try {
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+            } catch (err) {
+                console.error("Auth Error:", err);
             }
-          } catch (error) { console.error("Auth error:", error); }
         };
-        initAuth();
 
+        // Ecouter les changements d'auth avant de lancer Firestore
         onAuthStateChanged(auth, (user) => {
             if (user) {
-                state.user = user;
-                initDataListeners();
+                console.log("Authenticated as:", user.uid);
+                initListeners();
+            } else {
+                // Nettoyage si déconnexion
+                unsubscribers.forEach(unsub => unsub());
+                unsubscribers = [];
             }
         });
 
-        function initDataListeners() {
-            if (!state.user) return;
-            const getCol = (name) => collection(db, 'artifacts', appId, 'public', 'data', name);
-            const handleError = (err) => console.error("Firestore error:", err);
+        window.addEventListener('load', () => {
+            if (window.lucide) lucide.createIcons();
+            initAuth();
+        });
 
-            onSnapshot(getCol('livraisons'), s => {
-                state.livraisons = s.docs.map(d => ({id: d.id, ...d.data()}));
-                renderLivraisons();
-                renderFinances();
-            }, handleError);
+        // CONNEXION UI
+        const loginScreen = document.getElementById('login-screen');
+        const appContent = document.getElementById('app-content');
+        const passInput = document.getElementById('admin-password');
+        
+        const unlock = () => {
+            loginScreen.classList.add('hidden');
+            appContent.classList.remove('hidden');
+            if (window.lucide) lucide.createIcons();
+        };
 
-            onSnapshot(getCol('clients'), s => {
+        document.getElementById('login-btn').addEventListener('click', () => {
+            if(passInput.value === "rasoa123") unlock();
+            else document.getElementById('login-error').classList.remove('hidden');
+        });
+
+        document.getElementById('backdoor-btn').addEventListener('click', unlock);
+
+        document.getElementById('logout-btn').addEventListener('click', () => {
+            appContent.classList.add('hidden');
+            loginScreen.classList.remove('hidden');
+            passInput.value = "";
+        });
+
+        // FIRESTORE LISTENERS (Lancés après Auth)
+        function initListeners() {
+            if (!auth.currentUser) return;
+
+            // Nettoyer anciens listeners
+            unsubscribers.forEach(u => u());
+            unsubscribers = [];
+
+            const getCol = (n) => collection(db, 'artifacts', appId, 'public', 'data', n);
+            
+            const handleErr = (e) => console.error("Snapshot error:", e);
+
+            unsubscribers.push(onSnapshot(getCol('clients'), s => {
                 state.clients = s.docs.map(d => ({id: d.id, ...d.data()}));
                 renderClients();
-            }, handleError);
+            }, handleErr));
 
-            onSnapshot(getCol('versements'), s => {
+            unsubscribers.push(onSnapshot(getCol('livraisons'), s => {
+                state.livraisons = s.docs.map(d => ({id: d.id, ...d.data()}));
+                renderLivraisons();
+                renderStats();
+            }, handleErr));
+
+            unsubscribers.push(onSnapshot(getCol('versements'), s => {
                 state.versements = s.docs.map(d => ({id: d.id, ...d.data()}));
-                renderFinances();
-            }, handleError);
+                renderStats();
+            }, handleErr));
 
-            onSnapshot(getCol('depenses'), s => {
+            unsubscribers.push(onSnapshot(getCol('depenses'), s => {
                 state.depenses = s.docs.map(d => ({id: d.id, ...d.data()}));
-                renderFinances();
-            }, handleError);
+                renderStats();
+            }, handleErr));
         }
 
-        // GLOBAL EXPOSURE
-        window.handleLogin = () => {
-            const pass = document.getElementById('admin-password').value;
-            const errorMsg = document.getElementById('login-error');
-            
-            if (pass === "rasoa123") {
-                document.getElementById('login-screen').classList.add('hidden');
-                document.getElementById('app-content').classList.remove('hidden');
-                errorMsg.classList.add('hidden');
-                lucide.createIcons();
-            } else {
-                errorMsg.classList.remove('hidden');
-                document.getElementById('admin-password').value = "";
-                document.getElementById('admin-password').focus();
-            }
-        };
-
-        window.logout = () => {
-            document.getElementById('login-screen').classList.remove('hidden');
-            document.getElementById('app-content').classList.add('hidden');
-            document.getElementById('admin-password').value = "";
-        };
-
-        window.switchTab = (tabName) => {
-            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
-            document.getElementById(`tab-${tabName}`).classList.remove('hidden');
-            document.querySelectorAll('.tab-btn').forEach(btn => {
-                btn.classList.remove('border-indigo-600', 'text-indigo-600', 'bg-indigo-50/30');
-                btn.classList.add('border-transparent', 'text-slate-400');
-                if(btn.dataset.tab === tabName) {
-                    btn.classList.add('border-indigo-600', 'text-indigo-600', 'bg-indigo-50/30');
-                    btn.classList.remove('border-transparent', 'text-slate-400');
-                }
-            });
-            lucide.createIcons();
-        };
-
-        window.addOrder = async () => {
-            if (!state.user) return;
-            const nom = document.getElementById('order-nom').value;
-            const tel = document.getElementById('order-tel').value;
-            const lieu = document.getElementById('order-lieu').value;
-            const montant = document.getElementById('order-montant').value;
-            const type = document.getElementById('order-type').value;
-            if(!nom || !montant) return;
-            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'livraisons'), {
-                nom, telephone: tel, lieu, montant: Number(montant), type, statut: "Préparation",
-                timestamp: serverTimestamp(), date: new Date().toLocaleDateString('fr-FR')
-            });
-            ['order-nom', 'order-tel', 'order-lieu', 'order-montant'].forEach(id => document.getElementById(id).value = "");
-            switchTab('livraisons');
-        };
-
-        window.updateStatus = async (id, current) => {
-            if (!state.user) return;
-            const next = current === "Préparation" ? "Livraison" : "Livré";
-            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', id), { statut: next });
-        };
-
-        window.deleteItem = async (col, id) => {
-            if (!state.user) return;
+        // ACTIONS GLOBALES (Attachées à window pour onclick HTML)
+        window.del = async (col, id) => {
+            if (!auth.currentUser) return;
             await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id));
         };
 
-        window.addClient = async () => {
-            if (!state.user) return;
-            const nom = document.getElementById('c-nom').value;
-            const tel = document.getElementById('c-tel').value;
-            const lieu = document.getElementById('c-lieu').value;
-            if(!nom || !tel) return;
-            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'clients'), { nom, telephone: tel, lieu });
-            ['c-nom', 'c-tel', 'c-lieu'].forEach(id => document.getElementById(id).value = "");
+        window.updateStatus = async (id, cur) => {
+            if (!auth.currentUser) return;
+            const next = cur === "Préparation" ? "Livraison" : "Livré";
+            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', id), { statut: next });
         };
 
-        window.addVersement = async () => {
-            if (!state.user) return;
+        window.setClient = (n,t,l) => {
+            document.getElementById('order-nom').value = n;
+            document.getElementById('order-tel').value = t;
+            document.getElementById('order-lieu').value = l || "";
+            document.getElementById('search-results').classList.add('hidden');
+            document.getElementById('search-client').value = "";
+        };
+
+        // RENDUS
+        function renderLivraisons() {
+            const div = document.getElementById('livraisons-list');
+            div.innerHTML = '';
+            state.livraisons.sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)).forEach(l => {
+                const color = l.statut === 'Livré' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700';
+                div.insertAdjacentHTML('beforeend', `
+                    <div class="bg-white rounded-[2rem] border overflow-hidden shadow-sm">
+                        <div class="py-1 text-[9px] font-black text-center uppercase ${color}">${l.statut}</div>
+                        <div class="p-6 space-y-4">
+                            <div class="flex justify-between">
+                                <h3 class="font-black">${l.nom}</h3>
+                                <button onclick="del('livraisons','${l.id}')" class="text-slate-200 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                            </div>
+                            <div class="text-xs text-slate-400 flex items-center gap-1"><i data-lucide="map-pin" class="w-3 h-3"></i> ${l.lieu || '-'}</div>
+                            <div class="flex justify-between items-center pt-4 border-t">
+                                <span class="font-black text-indigo-600">${l.montant.toLocaleString()} Ar</span>
+                                ${l.statut !== 'Livré' ? `<button onclick="updateStatus('${l.id}','${l.statut}')" class="bg-slate-900 text-white p-2 rounded-xl"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `);
+            });
+            if (window.lucide) lucide.createIcons();
+        }
+
+        function renderStats() {
+            const totalL = state.livraisons.filter(l => l.statut === "Livré").reduce((a,c) => a + c.montant, 0);
+            const totalV = state.versements.reduce((a,c) => a + c.montant, 0);
+            const totalD = state.depenses.reduce((a,c) => a + c.montant, 0);
+            document.getElementById('stats-container').innerHTML = `
+                <div class="bg-white p-6 rounded-3xl border"><div class="text-[10px] font-black text-slate-400 uppercase">Total Livré</div><div class="text-xl font-black">${totalL.toLocaleString()} Ar</div></div>
+                <div class="bg-green-50 p-6 rounded-3xl border text-green-700"><div class="text-[10px] font-black uppercase">Encaissé</div><div class="text-xl font-black">${totalV.toLocaleString()} Ar</div></div>
+                <div class="bg-rose-50 p-6 rounded-3xl border text-rose-700"><div class="text-[10px] font-black uppercase">Dépenses</div><div class="text-xl font-black">${totalD.toLocaleString()} Ar</div></div>
+                <div class="bg-indigo-600 p-6 rounded-3xl text-white shadow-lg"><div class="text-[10px] font-black uppercase opacity-70">Solde</div><div class="text-xl font-black">${(totalV - totalD).toLocaleString()} Ar</div></div>
+            `;
+        }
+
+        function renderClients() {
+            const t = document.getElementById('clients-list');
+            t.innerHTML = '';
+            state.clients.forEach(c => {
+                t.insertAdjacentHTML('beforeend', `<tr class="hover:bg-slate-50"><td class="px-6 py-4 font-bold">${c.nom}</td><td class="px-6 py-4 font-mono text-indigo-600">${c.telephone}</td><td class="px-6 py-4"><button onclick="del('clients','${c.id}')" class="text-slate-200"><i data-lucide="trash-2" class="w-4 h-4"></i></button></td></tr>`);
+            });
+            if (window.lucide) lucide.createIcons();
+        }
+
+        // NAVIGATION
+        window.switchTab = (t) => {
+            document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
+            document.getElementById(`tab-${t}`).classList.remove('hidden');
+            document.querySelectorAll('.tab-btn').forEach(b => {
+                b.classList.remove('border-indigo-600', 'text-indigo-600', 'bg-indigo-50/30');
+                b.classList.add('border-transparent', 'text-slate-400');
+                if(b.dataset.tab === t) b.classList.add('border-indigo-600', 'text-indigo-600', 'bg-indigo-50/30');
+            });
+            if (window.lucide) lucide.createIcons();
+        };
+
+        document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+        
+        // RECHERCHE
+        document.getElementById('search-client').addEventListener('input', (e) => {
+            const val = e.target.value.toLowerCase();
+            const res = document.getElementById('search-results');
+            if(!val) return res.classList.add('hidden');
+            const match = state.clients.filter(c => c.nom.toLowerCase().includes(val) || c.telephone.includes(val));
+            if(match.length) {
+                res.innerHTML = match.map(c => `<div onclick="setClient('${c.nom.replace(/'/g, "\\'")}','${c.telephone}','${(c.lieu||'').replace(/'/g, "\\'")}')" class="p-4 hover:bg-indigo-50 cursor-pointer border-b"><b>${c.nom}</b> - ${c.telephone}</div>`).join('');
+                res.classList.remove('hidden');
+            } else res.classList.add('hidden');
+        });
+
+        // FORMULAIRES
+        document.getElementById('btn-save-order').addEventListener('click', async () => {
+            if (!auth.currentUser) return;
+            const nom = document.getElementById('order-nom').value;
+            const montant = document.getElementById('order-montant').value;
+            if(!nom || !montant) return;
+            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'livraisons'), {
+                nom, telephone: document.getElementById('order-tel').value, lieu: document.getElementById('order-lieu').value,
+                montant: Number(montant), type: document.getElementById('order-type').value, statut: "Préparation",
+                timestamp: serverTimestamp(), date: new Date().toLocaleDateString('fr-FR')
+            });
+            ['order-nom','order-tel','order-lieu','order-montant'].forEach(i => document.getElementById(i).value = "");
+            switchTab('livraisons');
+        });
+
+        document.getElementById('btn-add-client').addEventListener('click', async () => {
+            if (!auth.currentUser) return;
+            const nom = document.getElementById('c-nom').value;
+            if(!nom) return;
+            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'clients'), {
+                nom, telephone: document.getElementById('c-tel').value, lieu: document.getElementById('c-lieu').value
+            });
+            ['c-nom','c-tel','c-lieu'].forEach(i => document.getElementById(i).value = "");
+        });
+
+        document.getElementById('btn-add-versement').addEventListener('click', async () => {
+            if (!auth.currentUser) return;
             const m = document.getElementById('v-montant').value;
             if(!m) return;
             await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'versements'), {
                 montant: Number(m), timestamp: serverTimestamp(), date: new Date().toLocaleDateString('fr-FR')
             });
             document.getElementById('v-montant').value = "";
-        };
+        });
 
-        window.addDepense = async () => {
-            if (!state.user) return;
-            const motif = document.getElementById('d-motif').value;
+        document.getElementById('btn-add-depense').addEventListener('click', async () => {
+            if (!auth.currentUser) return;
             const m = document.getElementById('d-montant').value;
-            if(!motif || !m) return;
+            const mo = document.getElementById('d-motif').value;
+            if(!m || !mo) return;
             await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'depenses'), {
-                motif, montant: Number(m), timestamp: serverTimestamp(), date: new Date().toLocaleDateString('fr-FR')
+                motif: mo, montant: Number(m), timestamp: serverTimestamp(), date: new Date().toLocaleDateString('fr-FR')
             });
-            document.getElementById('d-motif').value = "";
-            document.getElementById('d-montant').value = "";
-        };
-
-        function renderLivraisons() {
-            const container = document.getElementById('livraisons-list');
-            if (!container) return;
-            container.innerHTML = state.livraisons.length === 0 ? '<div class="col-span-full py-20 text-center opacity-20"><p>Aucun colis</p></div>' : '';
-            state.livraisons.sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)).forEach(l => {
-                const color = l.statut === 'Livré' ? 'bg-green-100 text-green-700' : l.statut === 'Livraison' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700';
-                container.insertAdjacentHTML('beforeend', `
-                    <div class="bg-white rounded-[2rem] shadow-md overflow-hidden flex flex-col border-2 border-white">
-                        <div class="py-2 text-[10px] font-black uppercase text-center ${color}">${l.statut}</div>
-                        <div class="p-6 space-y-4">
-                            <div class="flex justify-between items-start">
-                                <div><h3 class="font-black text-slate-900">${l.nom}</h3><p class="text-[9px] font-bold text-slate-400 uppercase">${l.type}</p></div>
-                                <button onclick="deleteItem('livraisons', '${l.id}')" class="text-slate-200 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
-                            </div>
-                            <div class="text-xs text-slate-500 flex items-center gap-1"><i data-lucide="map-pin" class="w-3 h-3"></i> ${l.lieu || 'Non précisé'}</div>
-                            <div class="pt-4 border-t flex justify-between items-center">
-                                <span class="text-indigo-600 font-black">${l.montant.toLocaleString()} Ar</span>
-                                ${l.statut !== 'Livré' ? `<button onclick="updateStatus('${l.id}', '${l.statut}')" class="bg-slate-900 text-white p-2 rounded-xl"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>` : ''}
-                            </div>
-                        </div>
-                    </div>
-                `);
-            });
-            lucide.createIcons();
-        }
-
-        function renderClients() {
-            const container = document.getElementById('clients-list');
-            if (!container) return;
-            container.innerHTML = '';
-            state.clients.forEach(c => {
-                container.insertAdjacentHTML('beforeend', `
-                    <tr class="hover:bg-indigo-50/50 transition-colors">
-                        <td class="px-6 py-4 font-bold text-slate-700">${c.nom}</td>
-                        <td class="px-6 py-4 font-mono text-indigo-600 text-xs">${c.telephone}</td>
-                        <td class="px-6 py-4 text-right">
-                            <button onclick="deleteItem('clients', '${c.id}')" class="text-slate-200 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
-                        </td>
-                    </tr>
-                `);
-            });
-            lucide.createIcons();
-        }
-
-        function renderFinances() {
-            const statsContainer = document.getElementById('stats-container');
-            if (!statsContainer) return;
-            const totalLivre = state.livraisons.filter(l => l.statut === "Livré").reduce((acc, curr) => acc + (curr.montant || 0), 0);
-            const totalVer = state.versements.reduce((acc, curr) => acc + (curr.montant || 0), 0);
-            const totalDep = state.depenses.reduce((acc, curr) => acc + (curr.montant || 0), 0);
-            const solde = totalVer - totalDep;
-            statsContainer.innerHTML = `
-                <div class="bg-white p-6 rounded-3xl border border-white"><div class="text-[10px] font-black text-slate-400 uppercase mb-1">C.A Livré</div><div class="text-xl font-black">${totalLivre.toLocaleString()} Ar</div></div>
-                <div class="bg-green-50 p-6 rounded-3xl border border-green-100"><div class="text-[10px] font-black text-green-600 uppercase mb-1">Encaissé</div><div class="text-xl font-black text-green-700">${totalVer.toLocaleString()} Ar</div></div>
-                <div class="bg-rose-50 p-6 rounded-3xl border border-rose-100"><div class="text-[10px] font-black text-rose-600 uppercase mb-1">Dépenses</div><div class="text-xl font-black text-rose-700">${totalDep.toLocaleString()} Ar</div></div>
-                <div class="${solde >= 0 ? 'bg-indigo-600' : 'bg-rose-600'} p-6 rounded-3xl text-white"><div class="text-[10px] font-black opacity-70 uppercase mb-1">Solde Net</div><div class="text-xl font-black">${solde.toLocaleString()} Ar</div></div>
-            `;
-            const vHist = document.getElementById('versements-history');
-            if (vHist) {
-                vHist.innerHTML = '';
-                state.versements.sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)).forEach(v => {
-                    vHist.insertAdjacentHTML('beforeend', `<div class="flex justify-between items-center p-3 bg-slate-50 rounded-2xl border border-white"><span class="text-[10px] font-bold text-slate-400">${v.date}</span><div class="flex items-center gap-4"><span class="font-black text-green-600 text-sm">${v.montant.toLocaleString()} Ar</span><button onclick="deleteItem('versements', '${v.id}')" class="text-slate-200"><i data-lucide="x" class="w-3 h-3"></i></button></div></div>`);
-                });
-            }
-            const dHist = document.getElementById('depenses-history');
-            if (dHist) {
-                dHist.innerHTML = '';
-                state.depenses.sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)).forEach(d => {
-                    dHist.insertAdjacentHTML('beforeend', `<div class="p-3 bg-slate-50 rounded-2xl border border-white flex justify-between"><div><div class="font-bold text-slate-800 text-xs">${d.motif}</div><div class="text-[9px] text-slate-400">${d.date}</div></div><div class="flex items-center gap-2"><span class="font-black text-rose-600 text-sm">${d.montant.toLocaleString()} Ar</span><button onclick="deleteItem('depenses', '${d.id}')" class="text-slate-200"><i data-lucide="x" class="w-3 h-3"></i></button></div></div>`);
-                });
-            }
-            lucide.createIcons();
-        }
-
-        const searchInput = document.getElementById('search-client');
-        const searchResults = document.getElementById('search-results');
-        if (searchInput) {
-            searchInput.addEventListener('input', (e) => {
-                const term = e.target.value.toLowerCase();
-                if(!term) { searchResults.classList.add('hidden'); return; }
-                const matches = state.clients.filter(c => c.nom.toLowerCase().includes(term) || c.telephone.includes(term));
-                if(matches.length > 0) {
-                    searchResults.innerHTML = matches.map(c => `<div onclick="selectClient('${c.nom}', '${c.telephone}', '${c.lieu}')" class="p-4 hover:bg-indigo-50 cursor-pointer border-b flex justify-between"><div><div class="font-bold">${c.nom}</div><div class="text-[10px]">${c.telephone}</div></div><i data-lucide="plus" class="text-indigo-400 w-4 h-4"></i></div>`).join('');
-                    searchResults.classList.remove('hidden'); lucide.createIcons();
-                } else { searchResults.classList.add('hidden'); }
-            });
-        }
-        window.selectClient = (nom, tel, lieu) => {
-            document.getElementById('order-nom').value = nom;
-            document.getElementById('order-tel').value = tel;
-            document.getElementById('order-lieu').value = lieu || "";
-            searchResults.classList.add('hidden'); searchInput.value = "";
-        };
-
-        window.addEventListener('load', () => lucide.createIcons());
+            document.getElementById('d-montant').value = ""; document.getElementById('d-motif').value = "";
+        });
     </script>
 </body>
 </html>
