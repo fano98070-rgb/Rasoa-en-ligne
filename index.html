@@ -3,412 +3,494 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rasoa en Ligne Pro - Gestion</title>
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <title>Rasoa Pro - Gestion</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/lucide@latest"></script>
-    
-    <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, query } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
-
-        window.fb = { initializeApp, getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, query };
-    </script>
-
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
-        body { font-family: 'Plus Jakarta Sans', sans-serif; }
-        .hide-scrollbar::-webkit-scrollbar { display: none; }
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
+        body { font-family: 'Inter', sans-serif; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        [v-cloak] { display: none; }
     </style>
 </head>
-<body class="bg-slate-50 text-slate-900">
-    <div id="root"></div>
+<body class="bg-slate-50 min-h-screen pb-20">
 
-    <script type="text/babel">
-        const { useState, useEffect, useMemo } = React;
+    <!-- Écran de Connexion -->
+    <div id="login-screen" class="fixed inset-0 z-[100] bg-slate-950 flex items-center justify-center p-4">
+        <div class="bg-white p-8 rounded-[2.5rem] w-full max-w-sm text-center shadow-2xl">
+            <div class="bg-indigo-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6">
+                <i data-lucide="lock" class="text-indigo-600 w-8 h-8"></i>
+            </div>
+            <h1 class="text-2xl font-black mb-2 uppercase tracking-tight text-slate-900">Rasoa Pro</h1>
+            <p class="text-slate-500 text-sm mb-8 font-medium">Espace de gestion réservé</p>
+            <input type="password" id="admin-password" placeholder="Mot de passe" 
+                class="w-full p-4 bg-slate-50 border rounded-2xl mb-4 text-center font-bold outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
+            <button onclick="handleLogin()" class="w-full bg-indigo-600 text-white font-bold py-4 rounded-2xl hover:bg-indigo-700 transition-all shadow-lg">Connexion</button>
+        </div>
+    </div>
 
-        // REMPLACEZ CES VALEURS PAR VOS INFOS FIREBASE POUR GITHUB
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-            apiKey: "VOTRE_API_KEY",
-            authDomain: "VOTRE_AUTH_DOMAIN",
-            projectId: "VOTRE_PROJECT_ID",
-            storageBucket: "VOTRE_STORAGE_BUCKET",
-            messagingSenderId: "VOTRE_SENDER_ID",
-            appId: "VOTRE_APP_ID"
-        };
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'rasoa-pro-app';
+    <!-- Application Principale (cachée par défaut) -->
+    <div id="app-content" class="hidden">
+        <!-- Navbar -->
+        <nav class="bg-white border-b px-6 h-16 flex items-center justify-between sticky top-0 z-50 shadow-sm">
+            <div class="flex items-center gap-2 font-black text-xl tracking-tighter uppercase text-indigo-600">
+                <i data-lucide="zap" class="fill-current w-5 h-5"></i> Rasoa Pro
+            </div>
+            <button onclick="logout()" class="text-slate-400 font-bold text-sm flex items-center gap-1 px-4 py-2 rounded-xl hover:bg-slate-100 transition-colors">
+                <i data-lucide="log-out" class="w-4 h-4"></i> Quitter
+            </button>
+        </nav>
 
-        const Icon = ({ name, size = 20, className = "" }) => {
-            useEffect(() => { if (window.lucide) window.lucide.createIcons(); }, [name]);
-            return <i data-lucide={name} className={className} style={{ width: size, height: size }}></i>;
-        };
+        <!-- Menu Onglets -->
+        <div class="bg-white border-b overflow-x-auto sticky top-16 z-40 no-scrollbar">
+            <div class="max-w-5xl mx-auto px-4 flex">
+                <button onclick="switchTab('vente')" class="tab-btn active px-6 py-4 flex items-center gap-2 border-b-2 font-bold text-sm whitespace-nowrap transition-all border-indigo-600 text-indigo-600 bg-indigo-50/30" data-tab="vente">
+                    <i data-lucide="shopping-cart" class="w-4 h-4"></i> Vente
+                </button>
+                <button onclick="switchTab('livraisons')" class="tab-btn px-6 py-4 flex items-center gap-2 border-b-2 font-bold text-sm whitespace-nowrap transition-all border-transparent text-slate-400" data-tab="livraisons">
+                    <i data-lucide="truck" class="w-4 h-4"></i> Livraisons
+                </button>
+                <button onclick="switchTab('finances')" class="tab-btn px-6 py-4 flex items-center gap-2 border-b-2 font-bold text-sm whitespace-nowrap transition-all border-transparent text-slate-400" data-tab="finances">
+                    <i data-lucide="wallet" class="w-4 h-4"></i> Finances
+                </button>
+                <button onclick="switchTab('clients')" class="tab-btn px-6 py-4 flex items-center gap-2 border-b-2 font-bold text-sm whitespace-nowrap transition-all border-transparent text-slate-400" data-tab="clients">
+                    <i data-lucide="users" class="w-4 h-4"></i> Clients
+                </button>
+            </div>
+        </div>
 
-        function App() {
-            const [user, setUser] = useState(null);
-            const [db, setDb] = useState(null);
-            const [isAdmin, setIsAdmin] = useState(false);
-            const [password, setPassword] = useState("");
-            const [activeTab, setActiveTab] = useState("commandes");
+        <!-- Contenu -->
+        <main class="max-w-5xl mx-auto w-full p-4 md:p-8">
             
-            const [clients, setClients] = useState([]);
-            const [livraisons, setLivraisons] = useState([]);
-            const [depenses, setDepenses] = useState([]);
-            const [versements, setVersements] = useState([]);
-
-            const [searchTerm, setSearchTerm] = useState("");
-            const [orderForm, setOrderForm] = useState({ nom: "", telephone: "", montant: "", lieu: "", type: "Produit" });
-            const [clientForm, setClientForm] = useState({ nom: "", telephone: "", lieu: "" });
-            const [depenseForm, setDepenseForm] = useState({ motif: "", montant: "" });
-            const [versementForm, setVersementForm] = useState({ montant: "" });
-
-            useEffect(() => {
-                const { initializeApp, getFirestore, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } = window.fb;
-                const app = initializeApp(firebaseConfig);
-                const auth = getAuth(app);
-                const firestore = getFirestore(app);
-                setDb(firestore);
-
-                const initAuth = async () => {
-                    try {
-                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                            await signInWithCustomToken(auth, __initial_auth_token);
-                        } else {
-                            await signInAnonymously(auth);
-                        }
-                    } catch (e) { console.error("Erreur Auth:", e); }
-                };
-                initAuth();
-                const unsubscribe = onAuthStateChanged(auth, setUser);
-                return () => unsubscribe();
-            }, []);
-
-            useEffect(() => {
-                if (!db || !user) return;
-                const { collection, onSnapshot } = window.fb;
-                
-                // Chemins Firebase selon RULE 1
-                const unsubLiv = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'livraisons'), (s) => setLivraisons(s.docs.map(d => ({ id: d.id, ...d.data() }))), (e) => console.error(e));
-                const unsubCli = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'clients'), (s) => setClients(s.docs.map(d => ({ id: d.id, ...d.data() }))), (e) => console.error(e));
-                const unsubDep = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'depenses'), (s) => setDepenses(s.docs.map(d => ({ id: d.id, ...d.data() }))), (e) => console.error(e));
-                const unsubVer = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'versements'), (s) => setVersements(s.docs.map(d => ({ id: d.id, ...d.data() }))), (e) => console.error(e));
-                
-                return () => { unsubLiv(); unsubCli(); unsubDep(); unsubVer(); };
-            }, [db, user]);
-
-            const stats = useMemo(() => {
-                const totalLivre = livraisons.filter(l => l.statut === "Livré").reduce((acc, curr) => acc + (Number(curr.montant) || 0), 0);
-                const totalVersements = versements.reduce((acc, curr) => acc + (Number(curr.montant) || 0), 0);
-                const totalDepenses = depenses.reduce((acc, curr) => acc + (Number(curr.montant) || 0), 0);
-                return { totalLivre, totalVersements, totalDepenses, beneficePerte: totalVersements - totalDepenses };
-            }, [livraisons, versements, depenses]);
-
-            const filteredClients = useMemo(() => {
-                if (!searchTerm || searchTerm.length < 2) return [];
-                return clients.filter(c => 
-                    (c.nom && c.nom.toLowerCase().includes(searchTerm.toLowerCase())) || 
-                    (c.telephone && c.telephone.includes(searchTerm))
-                );
-            }, [searchTerm, clients]);
-
-            const selectClient = (c) => {
-                setOrderForm({ ...orderForm, nom: c.nom, telephone: c.telephone, lieu: c.lieu || "" });
-                setSearchTerm("");
-            };
-
-            const handleLogin = () => {
-                if (password === "rasoa123") setIsAdmin(true);
-                else alert("Mot de passe incorrect");
-            };
-
-            const addOrder = async () => {
-                if (!orderForm.nom || !orderForm.montant) return alert("Nom et Montant requis !");
-                const newOrder = { 
-                    ...orderForm, 
-                    montant: Number(orderForm.montant), 
-                    statut: "Préparation", 
-                    timestamp: Date.now(), 
-                    date: new Date().toLocaleDateString('fr-FR') 
-                };
-                try {
-                    const { collection, addDoc } = window.fb;
-                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'livraisons'), newOrder);
-                    setOrderForm({ nom: "", telephone: "", montant: "", lieu: "", type: "Produit" });
-                    setActiveTab("livraisons");
-                } catch (e) { alert("Erreur lors de l'ajout: " + e.message); }
-            };
-
-            const addNewClient = async () => {
-                if (!clientForm.nom || !clientForm.telephone) return alert("Nom et Téléphone requis !");
-                try {
-                    const { collection, addDoc } = window.fb;
-                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'clients'), clientForm);
-                    setClientForm({ nom: "", telephone: "", lieu: "" });
-                    alert("Client enregistré !");
-                } catch (e) { console.error(e); }
-            };
-
-            const addFinances = async (type) => {
-                const { collection, addDoc } = window.fb;
-                try {
-                    if (type === 'depense') {
-                        if (!depenseForm.motif || !depenseForm.montant) return;
-                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'depenses'), { ...depenseForm, montant: Number(depenseForm.montant), timestamp: Date.now(), date: new Date().toLocaleDateString('fr-FR') });
-                        setDepenseForm({ motif: "", montant: "" });
-                    } else {
-                        if (!versementForm.montant) return;
-                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'versements'), { montant: Number(versementForm.montant), timestamp: Date.now(), date: new Date().toLocaleDateString('fr-FR') });
-                        setVersementForm({ montant: "" });
-                    }
-                } catch (e) { console.error(e); }
-            };
-
-            const deleteItem = async (col, id) => {
-                const { doc, deleteDoc } = window.fb;
-                if (confirm("Supprimer définitivement ?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id));
-            };
-
-            const nextStatus = async (id, currentStatus) => {
-                const { doc, updateDoc } = window.fb;
-                let newStatus = currentStatus === "Préparation" ? "Livraison" : "Livré";
-                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', id), { statut: newStatus });
-            };
-
-            if (!isAdmin) {
-                return (
-                    <div className="flex items-center justify-center min-h-screen p-4 bg-slate-900">
-                        <div className="bg-white p-8 rounded-[2.5rem] w-full max-w-sm text-center shadow-2xl">
-                            <Icon name="lock" size={40} className="mx-auto mb-4 text-indigo-600" />
-                            <h1 className="text-2xl font-black mb-6 uppercase tracking-tight">Rasoa Pro</h1>
-                            <input type="password" placeholder="Mot de passe" className="w-full p-4 bg-slate-50 border rounded-2xl mb-4 text-center font-bold" value={password} onChange={e => setPassword(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleLogin()} />
-                            <button onClick={handleLogin} className="w-full bg-indigo-600 text-white font-bold py-4 rounded-2xl hover:bg-indigo-700 transition-colors">Connexion</button>
+            <!-- Section Vente -->
+            <section id="tab-vente" class="tab-content">
+                <div class="max-w-2xl mx-auto bg-white rounded-[2.5rem] p-6 md:p-10 shadow-xl border border-white space-y-6">
+                    <h2 class="text-xl font-black uppercase text-center text-slate-800">Nouvelle Vente</h2>
+                    
+                    <div class="relative">
+                        <label class="text-[10px] font-black text-indigo-500 uppercase ml-2 mb-1 block">Rechercher Client</label>
+                        <div class="relative">
+                            <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 w-5 h-5"></i>
+                            <input type="text" id="search-client" placeholder="Nom ou téléphone..." 
+                                class="w-full p-4 pl-12 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
                         </div>
-                    </div>
-                );
-            }
-
-            return (
-                <div className="min-h-screen flex flex-col pb-10">
-                    <nav className="bg-white border-b px-6 h-16 flex items-center justify-between sticky top-0 z-50">
-                        <div className="flex items-center gap-2 font-black text-xl tracking-tighter uppercase text-indigo-600"><Icon name="zap"/> Rasoa Pro</div>
-                        <button onClick={() => setIsAdmin(false)} className="text-slate-400 font-bold text-sm flex items-center gap-1"><Icon name="log-out" size={16} /> Quitter</button>
-                    </nav>
-
-                    <div className="bg-white border-b overflow-x-auto sticky top-16 z-40 hide-scrollbar">
-                        <div className="max-w-5xl mx-auto px-4 flex">
-                            {[
-                                { id: 'commandes', label: 'Vente', icon: 'shopping-bag' },
-                                { id: 'livraisons', label: 'Livraisons', icon: 'truck' },
-                                { id: 'finances', label: 'Finances', icon: 'wallet' },
-                                { id: 'clients', label: 'Clients', icon: 'users' }
-                            ].map(t => (
-                                <button key={t.id} onClick={() => setActiveTab(t.id)} className={`px-6 py-4 flex items-center gap-2 border-b-2 font-bold text-sm whitespace-nowrap transition-all ${activeTab === t.id ? 'border-indigo-600 text-indigo-600 bg-indigo-50/30' : 'border-transparent text-slate-400 hover:text-slate-600'}`}>
-                                    <Icon name={t.icon} size={16} /> {t.label}
-                                </button>
-                            ))}
-                        </div>
+                        <div id="search-results" class="hidden absolute z-10 w-full mt-2 bg-white border rounded-2xl shadow-2xl max-h-60 overflow-y-auto"></div>
                     </div>
 
-                    <main className="max-w-5xl mx-auto w-full p-6">
-                        {activeTab === 'commandes' && (
-                            <div className="max-w-2xl mx-auto bg-white rounded-[2.5rem] p-8 shadow-sm border space-y-6">
-                                <h2 className="text-xl font-black uppercase text-center">Nouvelle Vente</h2>
-                                
-                                <div className="relative">
-                                    <label className="text-[10px] font-bold text-slate-400 uppercase ml-2">Rechercher un client</label>
-                                    <div className="relative">
-                                        <Icon name="search" size={16} className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300" />
-                                        <input 
-                                            value={searchTerm} 
-                                            onChange={e => setSearchTerm(e.target.value)} 
-                                            placeholder="Tapez un nom..." 
-                                            className="w-full p-4 pl-12 bg-indigo-50/50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-indigo-500"
-                                        />
-                                    </div>
-                                    {filteredClients.length > 0 && (
-                                        <div className="absolute z-10 w-full mt-2 bg-white border rounded-2xl shadow-xl max-h-48 overflow-y-auto">
-                                            {filteredClients.map(c => (
-                                                <div key={c.id} onClick={() => selectClient(c)} className="p-4 hover:bg-indigo-50 cursor-pointer border-b last:border-none flex justify-between items-center">
-                                                    <div>
-                                                        <div className="font-bold text-sm">{c.nom}</div>
-                                                        <div className="text-xs text-slate-400">{c.telephone}</div>
-                                                    </div>
-                                                    <Icon name="plus" size={14} className="text-indigo-400"/>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-slate-100">
+                        <input type="text" id="order-nom" placeholder="Nom Client" class="w-full p-4 bg-slate-50 rounded-2xl border-none font-medium">
+                        <input type="text" id="order-tel" placeholder="Téléphone" class="w-full p-4 bg-slate-50 rounded-2xl border-none font-medium">
+                    </div>
+                    <input type="text" id="order-lieu" placeholder="Adresse exacte de livraison..." class="w-full p-4 bg-slate-50 rounded-2xl border-none font-medium">
+                    
+                    <div class="grid grid-cols-2 gap-4">
+                        <div class="relative">
+                            <input type="number" id="order-montant" placeholder="Prix" class="w-full p-4 bg-slate-50 rounded-2xl border-none font-black text-lg text-indigo-600">
+                            <span class="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400">AR</span>
+                        </div>
+                        <select id="order-type" class="w-full p-4 bg-slate-50 rounded-2xl border-none font-bold text-slate-700 appearance-none">
+                            <option value="Produit">Produit</option>
+                            <option value="Colis">Colis</option>
+                        </select>
+                    </div>
 
-                                <div className="grid grid-cols-2 gap-4 pt-4 border-t">
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-2">Nom Client</label>
-                                        <input value={orderForm.nom} onChange={e => setOrderForm({...orderForm, nom: e.target.value})} placeholder="Nom" className="w-full p-4 bg-slate-50 rounded-2xl border-none" />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-2">Contact</label>
-                                        <input value={orderForm.telephone} onChange={e => setOrderForm({...orderForm, telephone: e.target.value})} placeholder="Téléphone" className="w-full p-4 bg-slate-50 rounded-2xl border-none font-mono" />
-                                    </div>
-                                </div>
-                                <input value={orderForm.lieu} onChange={e => setOrderForm({...orderForm, lieu: e.target.value})} placeholder="Adresse de livraison..." className="w-full p-4 bg-slate-50 rounded-2xl border-none" />
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-2">Prix Article (Ar)</label>
-                                        <input type="number" value={orderForm.montant} onChange={e => setOrderForm({...orderForm, montant: e.target.value})} placeholder="0" className="w-full p-4 bg-slate-50 rounded-2xl border-none font-black text-indigo-600" />
-                                    </div>
-                                    <div className="space-y-1">
-                                        <label className="text-[10px] font-bold text-slate-400 uppercase ml-2">Type</label>
-                                        <select value={orderForm.type} onChange={e => setOrderForm({...orderForm, type: e.target.value})} className="w-full p-4 bg-slate-50 rounded-2xl border-none font-bold">
-                                            <option value="Produit">Produit</option><option value="Colis">Colis</option>
-                                        </select>
-                                    </div>
-                                </div>
-                                <button onClick={addOrder} className="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black uppercase shadow-lg shadow-indigo-100 transition-transform active:scale-95">Valider la vente</button>
-                            </div>
-                        )}
-
-                        {activeTab === 'finances' && (
-                            <div className="space-y-8">
-                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-                                    <div className="bg-white p-6 rounded-3xl border shadow-sm">
-                                        <div className="text-[10px] font-black uppercase text-slate-400 mb-1">Articles Livrés</div>
-                                        <div className="text-xl font-black">{(stats.totalLivre).toLocaleString()} Ar</div>
-                                    </div>
-                                    <div className="bg-green-50 p-6 rounded-3xl border border-green-100">
-                                        <div className="text-[10px] font-black uppercase text-green-600 mb-1">Versements Reçus</div>
-                                        <div className="text-xl font-black text-green-700">{(stats.totalVersements).toLocaleString()} Ar</div>
-                                    </div>
-                                    <div className="bg-red-50 p-6 rounded-3xl border border-red-100">
-                                        <div className="text-[10px] font-black uppercase text-red-600 mb-1">Dépenses</div>
-                                        <div className="text-xl font-black text-red-700">{(stats.totalDepenses).toLocaleString()} Ar</div>
-                                    </div>
-                                    <div className={`${stats.beneficePerte >= 0 ? 'bg-indigo-600 text-white' : 'bg-rose-600 text-white'} p-6 rounded-3xl shadow-lg`}>
-                                        <div className="text-[10px] font-black uppercase opacity-70 mb-1">Bénéfice Net</div>
-                                        <div className="text-xl font-black">{(stats.beneficePerte).toLocaleString()} Ar</div>
-                                    </div>
-                                </div>
-
-                                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                                    <div className="bg-white rounded-3xl border p-6 space-y-4">
-                                        <h3 className="font-black uppercase text-sm flex items-center gap-2 text-green-600"><Icon name="arrow-down-circle" size={16} /> Encaisser Versement</h3>
-                                        <div className="flex gap-2">
-                                            <input type="number" placeholder="Montant" className="flex-1 p-3 bg-slate-50 rounded-xl font-bold" value={versementForm.montant} onChange={e => setVersementForm({montant: e.target.value})} />
-                                            <button onClick={() => addFinances('versement')} className="bg-green-600 text-white px-4 rounded-xl hover:bg-green-700 transition-colors"><Icon name="plus" /></button>
-                                        </div>
-                                        <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
-                                            {versements.map(v => (
-                                                <div key={v.id} className="flex justify-between items-center p-3 bg-slate-50 rounded-xl text-sm">
-                                                    <span className="text-slate-500">{v.date}</span>
-                                                    <div className="flex items-center gap-4">
-                                                        <span className="font-black text-green-600">{(v.montant).toLocaleString()} Ar</span>
-                                                        <button onClick={() => deleteItem('versements', v.id)} className="text-slate-300 hover:text-red-500"><Icon name="x" size={14}/></button>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    <div className="bg-white rounded-3xl border p-6 space-y-4">
-                                        <h3 className="font-black uppercase text-sm flex items-center gap-2 text-red-600"><Icon name="arrow-up-circle" size={16} /> Dépense</h3>
-                                        <input placeholder="Motif..." className="w-full p-3 bg-slate-50 rounded-xl text-sm" value={depenseForm.motif} onChange={e => setDepenseForm({...depenseForm, motif: e.target.value})} />
-                                        <div className="flex gap-2">
-                                            <input type="number" placeholder="Montant" className="flex-1 p-3 bg-slate-50 rounded-xl font-bold" value={depenseForm.montant} onChange={e => setDepenseForm({...depenseForm, montant: e.target.value})} />
-                                            <button onClick={() => addFinances('depense')} className="bg-red-600 text-white px-4 rounded-xl hover:bg-red-700 transition-colors"><Icon name="plus" /></button>
-                                        </div>
-                                        <div className="space-y-2 max-h-48 overflow-y-auto pr-2">
-                                            {depenses.map(d => (
-                                                <div key={d.id} className="flex justify-between items-center p-3 bg-slate-50 rounded-xl text-sm">
-                                                    <div><div className="font-bold">{d.motif}</div><div className="text-[10px] text-slate-400">{d.date}</div></div>
-                                                    <div className="flex items-center gap-4">
-                                                        <span className="font-black text-red-500">{(d.montant).toLocaleString()} Ar</span>
-                                                        <button onClick={() => deleteItem('depenses', d.id)} className="text-slate-300 hover:text-red-500"><Icon name="x" size={14}/></button>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {activeTab === 'livraisons' && (
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
-                                {livraisons.length === 0 && <p className="text-center col-span-full text-slate-400 py-10">Aucune livraison en cours</p>}
-                                {livraisons.sort((a,b) => b.timestamp - a.timestamp).map(l => (
-                                    <div key={l.id} className="bg-white rounded-[2rem] border shadow-sm overflow-hidden flex flex-col relative transition-all hover:shadow-md">
-                                        <div className={`py-2 text-[10px] font-black uppercase text-center border-b ${l.statut === 'Livré' ? 'bg-green-100 text-green-700' : l.statut === 'Livraison' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
-                                            {l.statut}
-                                        </div>
-                                        <div className="p-6 space-y-4 flex-1">
-                                            <div className="flex justify-between items-start">
-                                                <h3 className="font-black text-slate-900 text-lg leading-tight">{l.client}</h3>
-                                                <button onClick={() => deleteItem('livraisons', l.id)} className="text-slate-200 hover:text-red-500 transition-colors"><Icon name="trash-2" size={14}/></button>
-                                            </div>
-                                            <div className="space-y-2 text-xs">
-                                                <p className="text-slate-500 flex items-start gap-1"><Icon name="map-pin" size={12} className="shrink-0 text-slate-300"/> {l.lieu || "Lieu non précisé"}</p>
-                                                <div className="font-mono text-slate-400 bg-slate-50 p-2 rounded-lg">{l.telephone}</div>
-                                            </div>
-                                            <div className="pt-4 border-t flex justify-between items-end mt-auto">
-                                                <div className="flex flex-col">
-                                                    <span className="text-[8px] text-slate-400 uppercase font-bold">Prix</span>
-                                                    <span className="text-slate-900 text-xl font-black">{(Number(l.montant) || 0).toLocaleString()} Ar</span>
-                                                </div>
-                                                {l.statut !== "Livré" && (
-                                                    <button onClick={() => nextStatus(l.id, l.statut)} className="bg-slate-900 text-white p-3 rounded-2xl shadow-lg hover:bg-indigo-600 transition-colors">
-                                                        <Icon name="chevron-right" />
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-
-                        {activeTab === 'clients' && (
-                            <div className="space-y-6">
-                                <div className="bg-white rounded-[2rem] p-8 border shadow-sm max-w-xl mx-auto">
-                                    <h3 className="font-black uppercase mb-6 flex items-center gap-2"><Icon name="user-plus" /> Nouveau Client</h3>
-                                    <div className="space-y-4">
-                                        <input value={clientForm.nom} onChange={e => setClientForm({...clientForm, nom: e.target.value})} placeholder="Nom complet" className="w-full p-4 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-indigo-500" />
-                                        <input value={clientForm.telephone} onChange={e => setClientForm({...clientForm, telephone: e.target.value})} placeholder="Téléphone" className="w-full p-4 bg-slate-50 rounded-2xl border-none font-mono" />
-                                        <input value={clientForm.lieu} onChange={e => setClientForm({...clientForm, lieu: e.target.value})} placeholder="Adresse par défaut" className="w-full p-4 bg-slate-50 rounded-2xl border-none" />
-                                        <button onClick={addNewClient} className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase hover:bg-indigo-700">Enregistrer</button>
-                                    </div>
-                                </div>
-
-                                <div className="bg-white rounded-[2rem] border shadow-sm overflow-hidden">
-                                    <div className="overflow-x-auto">
-                                        <table className="w-full text-left text-sm">
-                                            <thead className="bg-slate-50 border-b text-[10px] uppercase text-slate-400 font-black">
-                                                <tr><th className="px-6 py-4">Nom</th><th className="px-6 py-4">Contact</th><th className="px-6 py-4">Adresse</th><th className="px-6 py-4"></th></tr>
-                                            </thead>
-                                            <tbody className="divide-y divide-slate-50">
-                                                {clients.map(c => (
-                                                    <tr key={c.id} className="hover:bg-slate-50 transition-colors">
-                                                        <td className="px-6 py-4 font-bold">{c.nom}</td>
-                                                        <td className="px-6 py-4 font-mono text-slate-500">{c.telephone}</td>
-                                                        <td className="px-6 py-4 text-slate-400 text-xs">{c.lieu || "-"}</td>
-                                                        <td className="px-6 py-4 text-right">
-                                                            <button onClick={() => deleteItem('clients', c.id)} className="text-slate-300 hover:text-red-500"><Icon name="trash-2" size={14}/></button>
-                                                        </td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    </div>
-                                </div>
-                            </div>
-                        )}
-                    </main>
+                    <button onclick="addOrder()" id="btn-save-order" class="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black uppercase shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all">
+                        Valider l'enregistrement
+                    </button>
                 </div>
-            );
+            </section>
+
+            <!-- Section Livraisons -->
+            <section id="tab-livraisons" class="tab-content hidden">
+                <div id="livraisons-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    <!-- Injecté par JS -->
+                </div>
+            </section>
+
+            <!-- Section Finances -->
+            <section id="tab-finances" class="tab-content hidden">
+                <div class="space-y-8">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4" id="stats-container">
+                        <!-- Stats injectées ici -->
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <!-- Versements -->
+                        <div class="bg-white rounded-[2rem] border border-white shadow-sm p-6 space-y-4">
+                            <h3 class="font-black uppercase text-sm flex items-center gap-2 text-green-600">
+                                <i data-lucide="arrow-down-circle" class="w-5 h-5"></i> Nouveau Versement
+                            </h3>
+                            <div class="flex gap-2">
+                                <input type="number" id="v-montant" placeholder="Montant..." class="flex-1 p-4 bg-slate-50 rounded-2xl font-black text-green-700">
+                                <button onclick="addVersement()" class="bg-green-600 text-white px-6 rounded-2xl font-bold">OK</button>
+                            </div>
+                            <div id="versements-history" class="space-y-2 mt-6 max-h-60 overflow-y-auto pr-2 no-scrollbar"></div>
+                        </div>
+                        <!-- Dépenses -->
+                        <div class="bg-white rounded-[2rem] border border-white shadow-sm p-6 space-y-4">
+                            <h3 class="font-black uppercase text-sm flex items-center gap-2 text-rose-600">
+                                <i data-lucide="arrow-up-circle" class="w-5 h-5"></i> Nouvelle Dépense
+                            </h3>
+                            <input type="text" id="d-motif" placeholder="Motif..." class="w-full p-4 bg-slate-50 rounded-2xl font-medium">
+                            <div class="flex gap-2">
+                                <input type="number" id="d-montant" placeholder="Montant..." class="flex-1 p-4 bg-slate-50 rounded-2xl font-black text-rose-700">
+                                <button onclick="addDepense()" class="bg-rose-600 text-white px-6 rounded-2xl font-bold">OK</button>
+                            </div>
+                            <div id="depenses-history" class="space-y-2 mt-6 max-h-60 overflow-y-auto pr-2 no-scrollbar"></div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Section Clients -->
+            <section id="tab-clients" class="tab-content hidden">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div class="lg:col-span-1">
+                        <div class="bg-white rounded-[2rem] p-8 border border-white shadow-xl">
+                            <h3 class="font-black uppercase mb-6 flex items-center gap-2 text-indigo-600 text-lg">
+                                <i data-lucide="plus" class="bg-indigo-600 text-white rounded-lg p-0.5 w-5 h-5"></i> Client
+                            </h3>
+                            <div class="space-y-4">
+                                <input type="text" id="c-nom" placeholder="Nom Complet" class="w-full p-4 bg-slate-50 rounded-2xl font-bold">
+                                <input type="text" id="c-tel" placeholder="Contact" class="w-full p-4 bg-slate-50 rounded-2xl font-mono font-bold">
+                                <input type="text" id="c-lieu" placeholder="Zone habituelle" class="w-full p-4 bg-slate-50 rounded-2xl">
+                                <button onclick="addClient()" class="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase mt-4">Ajouter</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="lg:col-span-2 bg-white rounded-[2rem] border border-white shadow-sm overflow-hidden">
+                        <div class="p-6 border-b border-slate-50"><h3 class="font-black uppercase">Répertoire</h3></div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-left text-sm">
+                                <thead class="bg-slate-50 text-[10px] uppercase text-slate-400 font-black">
+                                    <tr><th class="px-6 py-4">Nom</th><th class="px-6 py-4">Tel</th><th class="px-6 py-4">Actions</th></tr>
+                                </thead>
+                                <tbody id="clients-list" class="divide-y divide-slate-50"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </main>
+    </div>
+
+    <!-- Scripts Firebase -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const db = getFirestore(app);
+        const auth = getAuth(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'rasoa-pro-v1';
+
+        // État global
+        let state = {
+            user: null,
+            clients: [],
+            livraisons: [],
+            depenses: [],
+            versements: []
+        };
+
+        // Initialisation de l'authentification
+        const initAuth = async () => {
+          try {
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+              await signInWithCustomToken(auth, __initial_auth_token);
+            } else {
+              await signInAnonymously(auth);
+            }
+          } catch (error) {
+            console.error("Auth error:", error);
+          }
+        };
+
+        // On lance l'auth immédiatement
+        initAuth();
+
+        // Écouteur de changement d'état d'authentification
+        onAuthStateChanged(auth, (user) => {
+            if (user) {
+                state.user = user;
+                // On n'active les listeners QUE quand l'utilisateur est authentifié
+                initDataListeners();
+            }
+        });
+
+        function initDataListeners() {
+            if (!state.user) return; // Sécurité supplémentaire
+
+            const getCol = (name) => collection(db, 'artifacts', appId, 'public', 'data', name);
+            const handleError = (err) => console.error("Firestore error:", err);
+
+            onSnapshot(getCol('livraisons'), s => {
+                state.livraisons = s.docs.map(d => ({id: d.id, ...d.data()}));
+                renderLivraisons();
+                renderFinances();
+            }, handleError);
+
+            onSnapshot(getCol('clients'), s => {
+                state.clients = s.docs.map(d => ({id: d.id, ...d.data()}));
+                renderClients();
+            }, handleError);
+
+            onSnapshot(getCol('versements'), s => {
+                state.versements = s.docs.map(d => ({id: d.id, ...d.data()}));
+                renderFinances();
+            }, handleError);
+
+            onSnapshot(getCol('depenses'), s => {
+                state.depenses = s.docs.map(d => ({id: d.id, ...d.data()}));
+                renderFinances();
+            }, handleError);
         }
 
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
+        // --- EXPOSITION DES FONCTIONS AU WINDOW POUR HTML ---
+
+        window.handleLogin = () => {
+            const pass = document.getElementById('admin-password').value;
+            if (pass === "rasoa123") {
+                document.getElementById('login-screen').classList.add('hidden');
+                document.getElementById('app-content').classList.remove('hidden');
+                lucide.createIcons();
+            }
+        };
+
+        window.logout = () => {
+            document.getElementById('login-screen').classList.remove('hidden');
+            document.getElementById('app-content').classList.add('hidden');
+        };
+
+        window.switchTab = (tabName) => {
+            document.querySelectorAll('.tab-content').forEach(el => el.classList.add('hidden'));
+            document.getElementById(`tab-${tabName}`).classList.remove('hidden');
+            
+            document.querySelectorAll('.tab-btn').forEach(btn => {
+                btn.classList.remove('border-indigo-600', 'text-indigo-600', 'bg-indigo-50/30');
+                btn.classList.add('border-transparent', 'text-slate-400');
+                if(btn.dataset.tab === tabName) {
+                    btn.classList.add('border-indigo-600', 'text-indigo-600', 'bg-indigo-50/30');
+                    btn.classList.remove('border-transparent', 'text-slate-400');
+                }
+            });
+            lucide.createIcons();
+        };
+
+        // Actions Firestore
+        window.addOrder = async () => {
+            if (!state.user) return;
+            const nom = document.getElementById('order-nom').value;
+            const tel = document.getElementById('order-tel').value;
+            const lieu = document.getElementById('order-lieu').value;
+            const montant = document.getElementById('order-montant').value;
+            const type = document.getElementById('order-type').value;
+
+            if(!nom || !montant) return;
+
+            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'livraisons'), {
+                nom, telephone: tel, lieu, montant: Number(montant), type,
+                statut: "Préparation",
+                timestamp: serverTimestamp(),
+                date: new Date().toLocaleDateString('fr-FR')
+            });
+
+            // Reset
+            ['order-nom', 'order-tel', 'order-lieu', 'order-montant'].forEach(id => document.getElementById(id).value = "");
+            switchTab('livraisons');
+        };
+
+        window.updateStatus = async (id, current) => {
+            if (!state.user) return;
+            const next = current === "Préparation" ? "Livraison" : "Livré";
+            await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', id), { statut: next });
+        };
+
+        window.deleteItem = async (col, id) => {
+            if (!state.user) return;
+            await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id));
+        };
+
+        window.addClient = async () => {
+            if (!state.user) return;
+            const nom = document.getElementById('c-nom').value;
+            const tel = document.getElementById('c-tel').value;
+            const lieu = document.getElementById('c-lieu').value;
+            if(!nom || !tel) return;
+            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'clients'), { nom, telephone: tel, lieu });
+            ['c-nom', 'c-tel', 'c-lieu'].forEach(id => document.getElementById(id).value = "");
+        };
+
+        window.addVersement = async () => {
+            if (!state.user) return;
+            const m = document.getElementById('v-montant').value;
+            if(!m) return;
+            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'versements'), {
+                montant: Number(m), timestamp: serverTimestamp(), date: new Date().toLocaleDateString('fr-FR')
+            });
+            document.getElementById('v-montant').value = "";
+        };
+
+        window.addDepense = async () => {
+            if (!state.user) return;
+            const motif = document.getElementById('d-motif').value;
+            const m = document.getElementById('d-montant').value;
+            if(!motif || !m) return;
+            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'depenses'), {
+                motif, montant: Number(m), timestamp: serverTimestamp(), date: new Date().toLocaleDateString('fr-FR')
+            });
+            document.getElementById('d-motif').value = "";
+            document.getElementById('d-montant').value = "";
+        };
+
+        // Moteur de rendu
+        function renderLivraisons() {
+            const container = document.getElementById('livraisons-list');
+            if (!container) return;
+            container.innerHTML = state.livraisons.length === 0 ? '<div class="col-span-full py-20 text-center opacity-20"><p>Aucun colis</p></div>' : '';
+            
+            state.livraisons.sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)).forEach(l => {
+                const color = l.statut === 'Livré' ? 'bg-green-100 text-green-700' : l.statut === 'Livraison' ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700';
+                const card = `
+                    <div class="bg-white rounded-[2rem] shadow-md overflow-hidden flex flex-col border-2 border-white">
+                        <div class="py-2 text-[10px] font-black uppercase text-center ${color}">${l.statut}</div>
+                        <div class="p-6 space-y-4">
+                            <div class="flex justify-between items-start">
+                                <div><h3 class="font-black text-slate-900">${l.nom}</h3><p class="text-[9px] font-bold text-slate-400 uppercase">${l.type}</p></div>
+                                <button onclick="deleteItem('livraisons', '${l.id}')" class="text-slate-200 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                            </div>
+                            <div class="text-xs text-slate-500 flex items-center gap-1"><i data-lucide="map-pin" class="w-3 h-3"></i> ${l.lieu || 'Non précisé'}</div>
+                            <div class="pt-4 border-t flex justify-between items-center">
+                                <span class="text-indigo-600 font-black">${l.montant.toLocaleString()} Ar</span>
+                                ${l.statut !== 'Livré' ? `<button onclick="updateStatus('${l.id}', '${l.statut}')" class="bg-slate-900 text-white p-2 rounded-xl"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>` : ''}
+                            </div>
+                        </div>
+                    </div>
+                `;
+                container.insertAdjacentHTML('beforeend', card);
+            });
+            lucide.createIcons();
+        }
+
+        function renderClients() {
+            const container = document.getElementById('clients-list');
+            if (!container) return;
+            container.innerHTML = '';
+            state.clients.forEach(c => {
+                container.insertAdjacentHTML('beforeend', `
+                    <tr class="hover:bg-indigo-50/50 transition-colors">
+                        <td class="px-6 py-4 font-bold text-slate-700">${c.nom}</td>
+                        <td class="px-6 py-4 font-mono text-indigo-600 text-xs">${c.telephone}</td>
+                        <td class="px-6 py-4 text-right">
+                            <button onclick="deleteItem('clients', '${c.id}')" class="text-slate-200 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                        </td>
+                    </tr>
+                `);
+            });
+            lucide.createIcons();
+        }
+
+        function renderFinances() {
+            const statsContainer = document.getElementById('stats-container');
+            if (!statsContainer) return;
+            
+            const totalLivre = state.livraisons.filter(l => l.statut === "Livré").reduce((acc, curr) => acc + (curr.montant || 0), 0);
+            const totalVer = state.versements.reduce((acc, curr) => acc + (curr.montant || 0), 0);
+            const totalDep = state.depenses.reduce((acc, curr) => acc + (curr.montant || 0), 0);
+            const solde = totalVer - totalDep;
+
+            statsContainer.innerHTML = `
+                <div class="bg-white p-6 rounded-3xl border border-white">
+                    <div class="text-[10px] font-black uppercase text-slate-400 mb-1">C.A Livré</div>
+                    <div class="text-xl font-black text-slate-900">${totalLivre.toLocaleString()} Ar</div>
+                </div>
+                <div class="bg-green-50 p-6 rounded-3xl border border-green-100">
+                    <div class="text-[10px] font-black uppercase text-green-600 mb-1">Encaissé</div>
+                    <div class="text-xl font-black text-green-700">${totalVer.toLocaleString()} Ar</div>
+                </div>
+                <div class="bg-rose-50 p-6 rounded-3xl border border-rose-100">
+                    <div class="text-[10px] font-black uppercase text-rose-600 mb-1">Dépenses</div>
+                    <div class="text-xl font-black text-rose-700">${totalDep.toLocaleString()} Ar</div>
+                </div>
+                <div class="${solde >= 0 ? 'bg-indigo-600' : 'bg-rose-600'} p-6 rounded-3xl text-white">
+                    <div class="text-[10px] font-black uppercase opacity-70 mb-1">Solde Net</div>
+                    <div class="text-xl font-black">${solde.toLocaleString()} Ar</div>
+                </div>
+            `;
+
+            const vHist = document.getElementById('versements-history');
+            if (vHist) {
+                vHist.innerHTML = '';
+                state.versements.sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)).forEach(v => {
+                    vHist.insertAdjacentHTML('beforeend', `
+                        <div class="flex justify-between items-center p-3 bg-slate-50 rounded-2xl border border-white">
+                            <span class="text-[10px] font-bold text-slate-400">${v.date}</span>
+                            <div class="flex items-center gap-4">
+                                <span class="font-black text-green-600 text-sm">${v.montant.toLocaleString()} Ar</span>
+                                <button onclick="deleteItem('versements', '${v.id}')" class="text-slate-200"><i data-lucide="x" class="w-3 h-3"></i></button>
+                            </div>
+                        </div>
+                    `);
+                });
+            }
+
+            const dHist = document.getElementById('depenses-history');
+            if (dHist) {
+                dHist.innerHTML = '';
+                state.depenses.sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)).forEach(d => {
+                    dHist.insertAdjacentHTML('beforeend', `
+                        <div class="p-3 bg-slate-50 rounded-2xl border border-white flex justify-between">
+                            <div><div class="font-bold text-slate-800 text-xs">${d.motif}</div><div class="text-[9px] text-slate-400">${d.date}</div></div>
+                            <div class="flex items-center gap-2">
+                                <span class="font-black text-rose-600 text-sm">${d.montant.toLocaleString()} Ar</span>
+                                <button onclick="deleteItem('depenses', '${d.id}')" class="text-slate-200"><i data-lucide="x" class="w-3 h-3"></i></button>
+                            </div>
+                        </div>
+                    `);
+                });
+            }
+            lucide.createIcons();
+        }
+
+        // Recherche client dynamique
+        const searchInput = document.getElementById('search-client');
+        const searchResults = document.getElementById('search-results');
+        
+        if (searchInput) {
+            searchInput.addEventListener('input', (e) => {
+                const term = e.target.value.toLowerCase();
+                if(!term) { searchResults.classList.add('hidden'); return; }
+                
+                const matches = state.clients.filter(c => c.nom.toLowerCase().includes(term) || c.telephone.includes(term));
+                if(matches.length > 0) {
+                    searchResults.innerHTML = matches.map(c => `
+                        <div onclick="selectClient('${c.nom}', '${c.telephone}', '${c.lieu}')" class="p-4 hover:bg-indigo-50 cursor-pointer border-b last:border-none flex justify-between">
+                            <div><div class="font-bold">${c.nom}</div><div class="text-[10px]">${c.telephone}</div></div>
+                            <i data-lucide="plus" class="text-indigo-400 w-4 h-4"></i>
+                        </div>
+                    `).join('');
+                    searchResults.classList.remove('hidden');
+                    lucide.createIcons();
+                } else {
+                    searchResults.classList.add('hidden');
+                }
+            });
+        }
+
+        window.selectClient = (nom, tel, lieu) => {
+            document.getElementById('order-nom').value = nom;
+            document.getElementById('order-tel').value = tel;
+            document.getElementById('order-lieu').value = lieu || "";
+            searchResults.classList.add('hidden');
+            searchInput.value = "";
+        };
+
+        // Init Lucide
+        window.addEventListener('load', () => lucide.createIcons());
     </script>
 </body>
 </html>
