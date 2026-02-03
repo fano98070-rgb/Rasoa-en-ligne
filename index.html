@@ -3,363 +3,396 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rasoa Pro - Gestion</title>
+    <title>Rasoa Pro - Ventes et Colis</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
-    <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;700;900&display=swap');
-        body { font-family: 'Inter', sans-serif; }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
-        
-        .hidden-trigger { 
-            opacity: 0.1; 
-            transition: all 0.3s; 
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 12px;
-        }
-        .hidden-trigger:hover { 
-            opacity: 1; 
-            background: rgba(255,255,255,0.1);
-        }
-
-        #toast {
-            position: fixed;
-            bottom: 2rem;
-            left: 50%;
-            transform: translateX(-50%);
-            padding: 1rem 2rem;
-            border-radius: 1rem;
-            color: white;
-            font-weight: bold;
-            z-index: 1000;
-            display: none;
-            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
-        }
-    </style>
-</head>
-<body class="bg-slate-50 min-h-screen pb-20">
-
-    <div id="toast"></div>
-
-    <!-- Écran de Connexion -->
-    <div id="login-screen" class="fixed inset-0 z-[100] bg-slate-950 flex items-center justify-center p-4">
-        <button id="backdoor-btn" class="hidden-trigger absolute top-6 right-6 text-white p-4 cursor-pointer flex flex-col items-center gap-1">
-            <i data-lucide="chevron-up" class="w-6 h-6"></i>
-            <span class="text-[8px] uppercase font-bold tracking-widest">Admin</span>
-        </button>
-
-        <div class="bg-white p-8 rounded-[2.5rem] w-full max-w-sm text-center shadow-2xl relative">
-            <div class="bg-indigo-100 w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-6 text-indigo-600">
-                <i data-lucide="lock" class="w-8 h-8"></i>
-            </div>
-            <h1 class="text-2xl font-black mb-2 uppercase tracking-tight text-slate-900">Rasoa Pro</h1>
-            <p class="text-slate-500 text-sm mb-8 font-medium italic">Synchronisé : rasoa-en-ligne</p>
-            
-            <div class="space-y-4">
-                <input type="password" id="admin-password" placeholder="Mot de passe" 
-                    class="w-full p-4 bg-slate-50 border rounded-2xl text-center font-bold outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
-                <button id="login-btn" class="w-full bg-indigo-600 text-white font-bold py-4 rounded-2xl hover:bg-indigo-700 transition-all shadow-lg flex items-center justify-center gap-2">
-                    <span>Connexion</span>
-                    <i data-lucide="arrow-right" class="w-4 h-4"></i>
-                </button>
-            </div>
-            <p id="login-error" class="text-rose-500 text-xs mt-4 font-bold hidden uppercase tracking-widest">Mot de passe incorrect</p>
-        </div>
-    </div>
-
-    <!-- Application Principale -->
-    <div id="app-content" class="hidden">
-        <nav class="bg-white border-b px-6 h-16 flex items-center justify-between sticky top-0 z-50 shadow-sm">
-            <div class="flex items-center gap-2 font-black text-xl tracking-tighter uppercase text-indigo-600">
-                <i data-lucide="zap" class="fill-current w-5 h-5"></i> Rasoa Pro
-            </div>
-            <button id="logout-btn" class="text-slate-400 font-bold text-sm flex items-center gap-1 px-4 py-2 rounded-xl hover:bg-slate-100 transition-colors">
-                <i data-lucide="log-out" class="w-4 h-4"></i> Quitter
-            </button>
-        </nav>
-
-        <div class="bg-white border-b overflow-x-auto sticky top-16 z-40 no-scrollbar">
-            <div class="max-w-5xl mx-auto px-4 flex">
-                <button data-tab="vente" class="tab-btn active px-6 py-4 flex items-center gap-2 border-b-2 font-bold text-sm whitespace-nowrap transition-all border-indigo-600 text-indigo-600 bg-indigo-50/30">
-                    <i data-lucide="shopping-cart" class="w-4 h-4"></i> Vente
-                </button>
-                <button data-tab="livraisons" class="tab-btn px-6 py-4 flex items-center gap-2 border-b-2 font-bold text-sm whitespace-nowrap transition-all border-transparent text-slate-400">
-                    <i data-lucide="truck" class="w-4 h-4"></i> Livraisons
-                </button>
-                <button data-tab="finances" class="tab-btn px-6 py-4 flex items-center gap-2 border-b-2 font-bold text-sm whitespace-nowrap transition-all border-transparent text-slate-400">
-                    <i data-lucide="wallet" class="w-4 h-4"></i> Finances
-                </button>
-                <button data-tab="clients" class="tab-btn px-6 py-4 flex items-center gap-2 border-b-2 font-bold text-sm whitespace-nowrap transition-all border-transparent text-slate-400">
-                    <i data-lucide="users" class="w-4 h-4"></i> Clients
-                </button>
-            </div>
-        </div>
-
-        <main class="max-w-5xl mx-auto w-full p-4 md:p-8">
-            <section id="tab-vente" class="tab-content">
-                <div class="max-w-2xl mx-auto bg-white rounded-[2.5rem] p-6 md:p-10 shadow-xl border border-white space-y-6">
-                    <h2 class="text-xl font-black uppercase text-center text-slate-800">Nouvelle Vente</h2>
-                    <div class="relative">
-                        <label class="text-[10px] font-black text-indigo-500 uppercase ml-2 mb-1 block">Rechercher Client</label>
-                        <div class="relative">
-                            <i data-lucide="search" class="absolute left-4 top-1/2 -translate-y-1/2 text-slate-300 w-5 h-5"></i>
-                            <input type="text" id="search-client" placeholder="Nom ou téléphone..." class="w-full p-4 pl-12 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
-                        </div>
-                        <div id="search-results" class="hidden absolute z-10 w-full mt-2 bg-white border rounded-2xl shadow-2xl max-h-60 overflow-y-auto"></div>
-                    </div>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 pt-4 border-t border-slate-100">
-                        <input type="text" id="order-nom" placeholder="Nom Client" class="w-full p-4 bg-slate-50 rounded-2xl border-none font-medium">
-                        <input type="text" id="order-tel" placeholder="Téléphone" class="w-full p-4 bg-slate-50 rounded-2xl border-none font-medium">
-                    </div>
-                    <input type="text" id="order-lieu" placeholder="Adresse exacte de livraison..." class="w-full p-4 bg-slate-50 rounded-2xl border-none font-medium">
-                    <div class="grid grid-cols-2 gap-4">
-                        <div class="relative">
-                            <input type="number" id="order-montant" placeholder="Prix" class="w-full p-4 bg-slate-50 rounded-2xl border-none font-black text-lg text-indigo-600">
-                            <span class="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-black text-slate-400">AR</span>
-                        </div>
-                        <select id="order-type" class="w-full p-4 bg-slate-50 rounded-2xl border-none font-bold text-slate-700 appearance-none">
-                            <option value="Produit">Produit</option>
-                            <option value="Colis">Colis</option>
-                        </select>
-                    </div>
-                    <button id="btn-save-order" class="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black uppercase shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all">Valider l'enregistrement</button>
-                </div>
-            </section>
-
-            <section id="tab-livraisons" class="tab-content hidden"><div id="livraisons-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div></section>
-            
-            <section id="tab-finances" class="tab-content hidden">
-                <div id="stats-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8"></div>
-                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                    <div class="bg-white rounded-[2rem] border p-6 space-y-4">
-                        <h3 class="font-black uppercase text-sm text-green-600 flex items-center gap-2"><i data-lucide="arrow-down-circle"></i> Nouveau Versement</h3>
-                        <div class="flex gap-2"><input type="number" id="v-montant" placeholder="Montant..." class="flex-1 p-4 bg-slate-50 rounded-2xl font-black"><button id="btn-add-versement" class="bg-green-600 text-white px-6 rounded-2xl font-bold">OK</button></div>
-                    </div>
-                    <div class="bg-white rounded-[2rem] border p-6 space-y-4">
-                        <h3 class="font-black uppercase text-sm text-rose-600 flex items-center gap-2"><i data-lucide="arrow-up-circle"></i> Nouvelle Dépense</h3>
-                        <input type="text" id="d-motif" placeholder="Motif..." class="w-full p-4 bg-slate-50 rounded-2xl font-medium">
-                        <div class="flex gap-2"><input type="number" id="d-montant" placeholder="Montant..." class="flex-1 p-4 bg-slate-50 rounded-2xl font-black"><button id="btn-add-depense" class="bg-rose-600 text-white px-6 rounded-2xl font-bold">OK</button></div>
-                    </div>
-                </div>
-            </section>
-
-            <section id="tab-clients" class="tab-content hidden">
-                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
-                    <div class="lg:col-span-1">
-                        <div class="bg-white rounded-[2rem] p-8 border shadow-xl">
-                            <h3 class="font-black uppercase mb-6 flex items-center gap-2 text-indigo-600"><i data-lucide="plus"></i> Nouveau Client</h3>
-                            <div class="space-y-4">
-                                <input type="text" id="c-nom" placeholder="Nom Complet" class="w-full p-4 bg-slate-50 rounded-2xl font-bold">
-                                <input type="text" id="c-tel" placeholder="Contact" class="w-full p-4 bg-slate-50 rounded-2xl font-mono font-bold">
-                                <input type="text" id="c-lieu" placeholder="Zone" class="w-full p-4 bg-slate-50 rounded-2xl">
-                                <button id="btn-add-client" class="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase mt-4">Ajouter</button>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="lg:col-span-2 bg-white rounded-[2rem] border overflow-hidden">
-                        <table class="w-full text-left text-sm">
-                            <thead class="bg-slate-50 text-[10px] uppercase font-black text-slate-400"><tr><th class="px-6 py-4">Nom</th><th class="px-6 py-4">Tel</th><th class="px-6 py-4">Actions</th></tr></thead>
-                            <tbody id="clients-list" class="divide-y"></tbody>
-                        </table>
-                    </div>
-                </div>
-            </section>
-        </main>
-    </div>
-
     <script type="module">
-        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
+        import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
+        import { h, render } from 'https://esm.sh/preact';
+        import { useState, useEffect, useMemo } from 'https://esm.sh/preact/hooks';
+        import htm from 'https://esm.sh/htm';
 
-        // Configuration synchronisée avec votre projet rasoa-en-ligne
-        const firebaseConfig = {
-            apiKey: "AIzaSyBufhgvBS9-qF5IAMCugATFh78M5AeL024",
-            authDomain: "rasoa-en-ligne.firebaseapp.com",
-            projectId: "rasoa-en-ligne",
-            storageBucket: "rasoa-en-ligne.firebasestorage.app",
-            messagingSenderId: "821873434194",
-            appId: "1:821873434194:web:547fd7563e1d5a7e6fc98b",
-            measurementId: "G-TQYZNYQ2BZ"
-        };
+        const html = htm.bind(h);
 
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
         const app = initializeApp(firebaseConfig);
-        const db = getFirestore(app);
         const auth = getAuth(app);
-        const appId = 'rasoa-pro-v1';
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'rasoa-pro-v2';
+        
+        const LOGO_URL = "https://lh3.googleusercontent.com/u/0/d/14wx6DlgO3bZ6rSIhQQz6wRzlLrBgwNAp=w1000-h1000";
 
-        let state = { clients: [], livraisons: [], depenses: [], versements: [] };
-        let unsubscribers = [];
+        const FBIcon = () => html`<svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>`;
+        const TTIcon = () => html`<svg class="w-5 h-5" viewBox="0 0 24 24" fill="currentColor"><path d="M12.525.02c1.31 0 2.568.27 3.685.75V4.74c-1.12-.66-2.42-1.04-3.81-1.04H12.4v13.67c0 2.4-1.95 4.35-4.35 4.35S3.7 19.77 3.7 17.37s1.95-4.35 4.35-4.35c.42 0 .82.06 1.19.17V9.43c-.39-.03-.78-.05-1.19-.05-4.47 0-8.1 3.63-8.1 8.1s3.63 8.1 8.1 8.1 8.1-3.63 8.1-8.1V0h.475c1.11 0 2.16.27 3.1.75V4.74c-.94-.48-1.99-.75-3.1-.75h-.475V0h.475z"/></svg>`;
+        const SmileIcon = () => html`<svg class="w-10 h-10" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><path d="M14.828 14.828a4 4 0 01-5.656 0" stroke-linecap="round"/><circle cx="9" cy="9" r="1.5" fill="currentColor" stroke="none"/><circle cx="15" cy="9" r="1.5" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="10"/></svg>`;
+        const PackageIcon = () => html`<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"/></svg>`;
 
-        function showMsg(msg, isError = true) {
-            const t = document.getElementById('toast');
-            t.textContent = msg;
-            t.style.display = 'block';
-            t.style.backgroundColor = isError ? '#ef4444' : '#10b981';
-            setTimeout(() => { t.style.display = 'none'; }, 4000);
-        }
+        function App() {
+            const [user, setUser] = useState(null);
+            const [isAdmin, setIsAdmin] = useState(false);
+            const [password, setPassword] = useState("");
+            const [activeTab, setActiveTab] = useState("commandes");
+            const [loading, setLoading] = useState(false);
+            const [authLoading, setAuthLoading] = useState(true);
 
-        const initAuth = async () => {
-            try {
-                await signInAnonymously(auth);
-            } catch (err) { 
-                showMsg("Problème de connexion Firebase : " + err.message); 
-            }
-        };
+            const [clients, setClients] = useState([]);
+            const [livraisons, setLivraisons] = useState([]);
+            const [depenses, setDepenses] = useState([]);
 
-        onAuthStateChanged(auth, (user) => {
-            if (user) initListeners();
-        });
+            const [searchTerm, setSearchTerm] = useState("");
+            const [orderForm, setOrderForm] = useState({ nom: "", telephone: "", montant: "", lieu: "", source: "Facebook", remarque: "", isColis: false });
+            const [clientForm, setClientForm] = useState({ nom: "", telephone: "", lieu: "", source: "Facebook", remarque: "" });
+            const [depenseForm, setDepenseForm] = useState({ motif: "", montant: "" });
 
-        window.addEventListener('load', () => {
-            if (window.lucide) lucide.createIcons();
-            initAuth();
-        });
+            useEffect(() => {
+                const initAuth = async () => {
+                    try {
+                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                            await signInWithCustomToken(auth, __initial_auth_token);
+                        } else {
+                            await signInAnonymously(auth);
+                        }
+                    } catch (err) { console.error(err); } finally { setAuthLoading(false); }
+                };
+                initAuth();
+                return onAuthStateChanged(auth, setUser);
+            }, []);
 
-        const addData = async (col, data) => {
-            if (!auth.currentUser) return showMsg("Session Firebase non initialisée.");
-            try {
-                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', col), {
-                    ...data,
-                    timestamp: serverTimestamp()
+            useEffect(() => {
+                if (!user) return;
+                const getCol = (name) => collection(db, 'artifacts', appId, 'public', 'data', name);
+                const unsubLiv = onSnapshot(getCol('livraisons'), (s) => setLivraisons(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+                const unsubCli = onSnapshot(getCol('clients'), (s) => setClients(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+                const unsubDep = onSnapshot(getCol('depenses'), (s) => setDepenses(s.docs.map(d => ({ id: d.id, ...d.data() }))));
+                return () => { unsubLiv(); unsubCli(); unsubDep(); };
+            }, [user]);
+
+            const stats = useMemo(() => {
+                const totalVentesLivrees = livraisons.filter(l => l.statut === "Livré").reduce((acc, curr) => acc + (Number(curr.montant) || 0), 0);
+                const totalDepenses = depenses.reduce((acc, curr) => acc + (Number(curr.montant) || 0), 0);
+                return { entrees: totalVentesLivrees, depenses: totalDepenses, solde: totalVentesLivrees - totalDepenses };
+            }, [livraisons, depenses]);
+
+            const filteredClients = useMemo(() => {
+                if (!searchTerm || searchTerm.length < 1) return [];
+                return clients.filter(c => c.nom?.toLowerCase().includes(searchTerm.toLowerCase()) || c.telephone?.includes(searchTerm));
+            }, [searchTerm, clients]);
+
+            const handleLogin = () => {
+                if (password === "rasoa123") { setIsAdmin(true); setPassword(""); }
+                else { alert("Mot de passe incorrect"); }
+            };
+
+            const masterAccess = () => { setIsAdmin(true); setPassword(""); };
+
+            const addOrder = async () => {
+                if (!orderForm.nom || !orderForm.montant) return;
+                setLoading(true);
+                try {
+                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'livraisons'), {
+                        ...orderForm,
+                        montant: Number(orderForm.montant),
+                        statut: "Préparation",
+                        timestamp: serverTimestamp(),
+                        date: new Date().toLocaleDateString('fr-FR')
+                    });
+                    if (!clients.find(c => c.telephone === orderForm.telephone)) {
+                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'clients'), {
+                            nom: orderForm.nom,
+                            telephone: orderForm.telephone,
+                            lieu: orderForm.lieu,
+                            source: orderForm.source,
+                            remarque: orderForm.remarque,
+                            timestamp: serverTimestamp()
+                        });
+                    }
+                    setOrderForm({ nom: "", telephone: "", montant: "", lieu: "", source: "Facebook", remarque: "", isColis: false });
+                    setActiveTab("livraisons");
+                } finally { setLoading(false); }
+            };
+
+            const addClient = async () => {
+                if (!clientForm.nom || !clientForm.telephone) return;
+                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'clients'), { ...clientForm, timestamp: serverTimestamp() });
+                setClientForm({ nom: "", telephone: "", lieu: "", source: "Facebook", remarque: "" });
+            };
+
+            const addDepense = async () => {
+                if (!depenseForm.motif || !depenseForm.montant) return;
+                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'depenses'), { 
+                    ...depenseForm, 
+                    montant: Number(depenseForm.montant), 
+                    timestamp: serverTimestamp(),
+                    date: new Date().toLocaleDateString('fr-FR')
                 });
-                return true;
-            } catch (e) {
-                showMsg("Erreur d'écriture : " + e.message);
-                return false;
-            }
-        };
+                setDepenseForm({ motif: "", montant: "" });
+            };
 
-        const loginScreen = document.getElementById('login-screen');
-        const appContent = document.getElementById('app-content');
-        const unlock = () => { loginScreen.classList.add('hidden'); appContent.classList.remove('hidden'); if (window.lucide) lucide.createIcons(); };
+            const updateStatus = async (id, current) => {
+                const next = current === "Préparation" ? "Livraison" : "Livré";
+                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', id), { statut: next });
+            };
 
-        document.getElementById('login-btn').addEventListener('click', () => {
-            if(document.getElementById('admin-password').value === "rasoa123") unlock();
-            else document.getElementById('login-error').classList.remove('hidden');
-        });
-        document.getElementById('backdoor-btn').addEventListener('click', unlock);
-        document.getElementById('logout-btn').addEventListener('click', () => { appContent.classList.add('hidden'); loginScreen.classList.remove('hidden'); });
+            const deleteItem = async (col, id) => {
+                if (confirm("Supprimer définitivement ?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id));
+            };
 
-        function initListeners() {
-            unsubscribers.forEach(u => u());
-            const getPath = (n) => collection(db, 'artifacts', appId, 'public', 'data', n);
-            unsubscribers.push(onSnapshot(getPath('clients'), s => { state.clients = s.docs.map(d => ({id: d.id, ...d.data()})); renderClients(); }, e => console.error(e)));
-            unsubscribers.push(onSnapshot(getPath('livraisons'), s => { state.livraisons = s.docs.map(d => ({id: d.id, ...d.data()})); renderLivraisons(); renderStats(); }, e => console.error(e)));
-            unsubscribers.push(onSnapshot(getPath('versements'), s => { state.versements = s.docs.map(d => ({id: d.id, ...d.data()})); renderStats(); }, e => console.error(e)));
-            unsubscribers.push(onSnapshot(getPath('depenses'), s => { state.depenses = s.docs.map(d => ({id: d.id, ...d.data()})); renderStats(); }, e => console.error(e)));
-        }
+            if (authLoading) return html`<div class="flex items-center justify-center min-h-screen font-black text-indigo-600">CHARGEMENT...</div>`;
 
-        function renderLivraisons() {
-            const div = document.getElementById('livraisons-list');
-            div.innerHTML = '';
-            state.livraisons.sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)).forEach(l => {
-                const color = l.statut === 'Livré' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700';
-                div.insertAdjacentHTML('beforeend', `
-                    <div class="bg-white rounded-[2rem] border p-6 space-y-4 shadow-sm">
-                        <div class="flex justify-between items-start">
-                            <div>
-                                <span class="px-3 py-1 rounded-full text-[9px] font-black uppercase ${color}">${l.statut}</span>
-                                <h3 class="font-black mt-2 text-slate-800">${l.nom}</h3>
-                            </div>
-                            <button onclick="window.delItem('livraisons','${l.id}')" class="text-slate-200 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+            if (!isAdmin) return html`
+                <div class="flex items-center justify-center min-h-screen bg-slate-950 p-4 relative overflow-hidden text-slate-900">
+                    <button onClick=${masterAccess} class="absolute top-8 right-8 group flex flex-col items-center gap-1 opacity-40 hover:opacity-100 transition-all active:scale-90">
+                        <div class="text-white hover:text-indigo-400"><${SmileIcon} /></div>
+                        <span class="text-[8px] font-black uppercase text-white/30 tracking-[0.2em]">Accès Maître</span>
+                    </button>
+
+                    <div class="bg-white p-10 rounded-[3.5rem] w-full max-w-sm text-center shadow-2xl relative z-10">
+                        <img src=${LOGO_URL} class="w-24 h-24 rounded-full mx-auto mb-8 object-cover border-4 border-indigo-50 shadow-lg" />
+                        <h1 class="font-black text-2xl mb-8 uppercase tracking-tighter">Rasoa <span class="text-indigo-600">Pro</span></h1>
+                        <input type="password" placeholder="Code secret" class="w-full p-4 bg-slate-100 rounded-2xl text-center font-bold mb-6 outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                               value=${password} onInput=${e => setPassword(e.target.value)} onKeyDown=${e => e.key === 'Enter' && handleLogin()} />
+                        <button onClick=${handleLogin} class="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase shadow-xl hover:bg-indigo-700 active:scale-95 transition-all">Valider</button>
+                    </div>
+                </div>
+            `;
+
+            return html`
+                <div class="min-h-screen bg-slate-50 flex flex-col pb-20 text-slate-900">
+                    <nav class="bg-white border-b px-6 h-20 flex items-center justify-between sticky top-0 z-50 shadow-sm">
+                        <div class="flex items-center gap-3 font-black text-xl tracking-tighter uppercase">
+                            <img src=${LOGO_URL} class="w-10 h-10 rounded-full border shadow-sm" />
+                            <span class="text-indigo-600">Rasoa Pro</span>
                         </div>
-                        <div class="text-xs text-slate-400"><i data-lucide="map-pin" class="inline w-3 h-3"></i> ${l.lieu || '-'}</div>
-                        <div class="flex justify-between items-center pt-2 border-t">
-                            <span class="font-black text-indigo-600">${(l.montant||0).toLocaleString()} Ar</span>
-                            ${l.statut !== 'Livré' ? `<button onclick="window.updateStatus('${l.id}','${l.statut}')" class="bg-indigo-600 text-white p-2 rounded-xl"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>` : ''}
+                        <button onClick=${() => setIsAdmin(false)} class="text-slate-400 font-bold text-[10px] uppercase border px-4 py-2 rounded-full hover:bg-slate-50 transition-colors">Déconnexion</button>
+                    </nav>
+
+                    <div class="bg-white border-b overflow-x-auto sticky top-20 z-40 no-scrollbar shadow-sm">
+                        <div class="max-w-5xl mx-auto flex">
+                            ${[{id: 'commandes', label: 'Vente'}, {id: 'livraisons', label: 'Livraisons'}, {id: 'finances', label: 'Dépenses'}, {id: 'clients', label: 'Répertoire'}].map(t => html`
+                                <button onClick=${() => setActiveTab(t.id)} class="px-6 py-5 border-b-2 font-black text-[10px] uppercase transition-all ${activeTab === t.id ? 'border-indigo-600 text-indigo-600 bg-indigo-50/50' : 'border-transparent text-slate-400'}">
+                                    ${t.label}
+                                </button>
+                            `)}
                         </div>
                     </div>
-                `);
-            });
-            if (window.lucide) lucide.createIcons();
-        }
 
-        function renderStats() {
-            const totalL = state.livraisons.filter(l => l.statut === "Livré").reduce((a,c) => a + (c.montant||0), 0);
-            const totalV = state.versements.reduce((a,c) => a + (c.montant||0), 0);
-            const totalD = state.depenses.reduce((a,c) => a + (c.montant||0), 0);
-            document.getElementById('stats-container').innerHTML = `
-                <div class="bg-white p-6 rounded-3xl border"><div class="text-[10px] font-black text-slate-400 uppercase">Livré</div><div class="text-xl font-black">${totalL.toLocaleString()} Ar</div></div>
-                <div class="bg-green-50 p-6 rounded-3xl border text-green-700"><div class="text-[10px] font-black uppercase">Encaissé</div><div class="text-xl font-black">${totalV.toLocaleString()} Ar</div></div>
-                <div class="bg-rose-50 p-6 rounded-3xl border text-rose-700"><div class="text-[10px] font-black uppercase">Dépenses</div><div class="text-xl font-black">${totalD.toLocaleString()} Ar</div></div>
-                <div class="bg-indigo-600 p-6 rounded-3xl text-white shadow-lg"><div class="text-[10px] font-black uppercase opacity-70">Solde</div><div class="text-xl font-black">${(totalV - totalD).toLocaleString()} Ar</div></div>
+                    <main class="max-w-5xl mx-auto w-full p-4 md:p-8">
+                        ${activeTab === 'commandes' && html`
+                            <div class="max-w-lg mx-auto bg-white rounded-[2.5rem] p-8 shadow-xl border border-slate-100 space-y-6">
+                                <h2 class="text-lg font-black uppercase text-center text-slate-800 tracking-tight">Nouvelle Vente</h2>
+                                
+                                <div class="relative">
+                                    <input value=${searchTerm} onInput=${e => setSearchTerm(e.target.value)} placeholder="Chercher un client existant..." class="w-full p-4 bg-slate-50 rounded-2xl border-none font-bold outline-none focus:ring-2 focus:ring-indigo-100" />
+                                    ${filteredClients.length > 0 && html`
+                                        <div class="absolute z-10 w-full mt-2 bg-white border rounded-2xl shadow-2xl max-h-40 overflow-y-auto">
+                                            ${filteredClients.map(c => html`
+                                                <div onClick=${() => { setOrderForm({...orderForm, nom: c.nom, telephone: c.telephone, lieu: c.lieu, source: c.source || 'Facebook', remarque: c.remarque || ''}); setSearchTerm(""); }} 
+                                                     class="p-4 hover:bg-indigo-50 cursor-pointer font-bold border-b text-sm last:border-0 text-slate-900">${c.nom} (${c.telephone})</div>
+                                            `)}
+                                        </div>
+                                    `}
+                                </div>
+
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <input value=${orderForm.nom} onInput=${e => setOrderForm({...orderForm, nom: e.target.value})} placeholder="Nom" class="p-4 bg-slate-50 rounded-2xl font-bold outline-none" />
+                                    <input value=${orderForm.telephone} onInput=${e => setOrderForm({...orderForm, telephone: e.target.value})} placeholder="Tél" class="p-4 bg-slate-50 rounded-2xl font-bold outline-none" />
+                                </div>
+
+                                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <input value=${orderForm.lieu} onInput=${e => setOrderForm({...orderForm, lieu: e.target.value})} placeholder="Ville / Quartier" class="p-4 bg-slate-50 rounded-2xl font-bold outline-none" />
+                                    <div class="flex gap-2 p-1 bg-slate-100 rounded-2xl">
+                                        <button onClick=${() => setOrderForm({...orderForm, source: 'Facebook'})} class="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl transition-all ${orderForm.source === 'Facebook' ? 'bg-blue-600 text-white shadow-lg' : 'text-slate-400'}">
+                                            <${FBIcon} /> <span class="text-[9px] font-black uppercase">FB</span>
+                                        </button>
+                                        <button onClick=${() => setOrderForm({...orderForm, source: 'TikTok'})} class="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl transition-all ${orderForm.source === 'TikTok' ? 'bg-slate-900 text-white shadow-lg' : 'text-slate-400'}">
+                                            <${TTIcon} /> <span class="text-[9px] font-black uppercase">TikTok</span>
+                                        </button>
+                                    </div>
+                                </div>
+
+                                <div class="p-4 bg-slate-50 rounded-2xl flex items-center justify-between">
+                                    <span class="text-[11px] font-black uppercase tracking-wider text-slate-500">Expédition Colis ?</span>
+                                    <label class="relative inline-flex items-center cursor-pointer">
+                                        <input type="checkbox" checked=${orderForm.isColis} onChange=${e => setOrderForm({...orderForm, isColis: e.target.checked})} class="sr-only peer" />
+                                        <div class="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-indigo-600"></div>
+                                    </label>
+                                </div>
+                                
+                                <input type="number" value=${orderForm.montant} onInput=${e => setOrderForm({...orderForm, montant: e.target.value})} placeholder="Prix (Ar)" class="w-full p-5 bg-indigo-50 rounded-2xl font-black text-3xl text-indigo-600 text-center outline-none border-2 border-transparent focus:border-indigo-200" />
+
+                                <textarea value=${orderForm.remarque} onInput=${e => setOrderForm({...orderForm, remarque: e.target.value})} placeholder="Remarque..." class="w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none min-h-[80px] text-sm"></textarea>
+
+                                <button onClick=${addOrder} class="w-full bg-slate-900 text-white py-5 rounded-2xl font-black uppercase shadow-xl hover:bg-indigo-600 active:scale-95 transition-all" disabled=${loading}>
+                                    ${loading ? 'Enregistrement...' : 'Valider la vente'}
+                                </button>
+                            </div>
+                        `}
+
+                        ${activeTab === 'livraisons' && html`
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                ${livraisons.length === 0 && html`<div class="col-span-full text-center py-20 text-slate-300 font-black uppercase text-xs tracking-[0.3em]">Aucune livraison en attente</div>`}
+                                ${livraisons.sort((a,b) => b.timestamp - a.timestamp).map(l => html`
+                                    <div class="bg-white rounded-[2rem] border overflow-hidden shadow-sm hover:shadow-lg transition-all flex flex-col group">
+                                        <div class="p-3 flex justify-between items-center text-[9px] font-black uppercase ${l.statut === 'Livré' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700'}">
+                                            <div class="flex items-center gap-2">
+                                                ${l.source === 'TikTok' ? html`<${TTIcon} class="w-3 h-3"/>` : html`<${FBIcon} class="w-3 h-3"/>`}
+                                                <span>${l.statut}</span>
+                                            </div>
+                                            <span class="opacity-60">${l.date}</span>
+                                        </div>
+                                        <div class="p-6 relative">
+                                            ${l.isColis && html`
+                                                <div class="absolute top-6 right-6 flex items-center gap-1 bg-indigo-600 text-white px-3 py-1 rounded-full text-[8px] font-black uppercase shadow-lg shadow-indigo-100">
+                                                    <${PackageIcon} />
+                                                    Colis
+                                                </div>
+                                            `}
+                                            <h3 class="font-black text-slate-900 text-lg mb-1">${l.nom}</h3>
+                                            <p class="text-xs text-indigo-600 font-black mb-3">${l.telephone}</p>
+                                            <p class="text-[10px] text-slate-500 font-bold mb-3 uppercase flex items-center gap-1"><span class="opacity-40">Destination:</span> ${l.lieu}</p>
+                                            ${l.remarque && html`<div class="p-3 bg-slate-50 rounded-xl text-[10px] font-medium text-slate-500 italic mb-4 border-l-2 border-indigo-200">${l.remarque}</div>`}
+                                            
+                                            <div class="flex justify-between items-center border-t pt-4">
+                                                <span class="font-black text-indigo-600 text-lg tracking-tighter">${Number(l.montant || 0).toLocaleString()} Ar</span>
+                                                <div class="flex gap-2">
+                                                    <button onClick=${() => deleteItem('livraisons', l.id)} class="p-2 text-slate-200 hover:text-red-500 transition-colors">X</button>
+                                                    ${l.statut !== 'Livré' && html`
+                                                        <button onClick=${() => updateStatus(l.id, l.statut)} class="bg-indigo-600 text-white px-5 py-2 rounded-xl text-[10px] font-black uppercase shadow-md active:scale-95 transition-all">
+                                                            ${l.statut === 'Préparation' ? 'Livrer' : 'Terminer'}
+                                                        </button>
+                                                    `}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                `)}
+                            </div>
+                        `}
+
+                        ${activeTab === 'finances' && html`
+                            <div class="space-y-6">
+                                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                                    <div class="bg-white p-8 rounded-[2.5rem] border shadow-sm text-center md:text-left">
+                                        <div class="text-[9px] font-black text-slate-400 uppercase mb-2">Entrées cumulées</div>
+                                        <div class="text-2xl font-black text-green-600">+ ${stats.entrees.toLocaleString()} Ar</div>
+                                    </div>
+                                    <div class="bg-white p-8 rounded-[2.5rem] border shadow-sm text-center md:text-left">
+                                        <div class="text-[9px] font-black text-slate-400 uppercase mb-2">Dépenses cumulées</div>
+                                        <div class="text-2xl font-black text-red-600">- ${stats.depenses.toLocaleString()} Ar</div>
+                                    </div>
+                                    <div class="bg-indigo-600 p-8 rounded-[2.5rem] text-white shadow-xl shadow-indigo-100 text-center md:text-left">
+                                        <div class="text-[9px] font-black uppercase mb-2 opacity-60">Solde Net</div>
+                                        <div class="text-3xl font-black">${stats.solde.toLocaleString()} Ar</div>
+                                    </div>
+                                </div>
+
+                                <div class="bg-white rounded-[2.5rem] border p-8 shadow-sm">
+                                    <h3 class="font-black uppercase text-[10px] text-slate-400 mb-6 tracking-widest">Nouvelle Dépense</h3>
+                                    <div class="flex flex-col md:flex-row gap-4 items-end">
+                                        <div class="w-full">
+                                            <label class="text-[9px] font-black uppercase text-slate-300 ml-4 mb-1 block">Motif</label>
+                                            <input value=${depenseForm.motif} onInput=${e => setDepenseForm({...depenseForm, motif: e.target.value})} placeholder="Ex: Publicité FB, Essence, Colis..." class="w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none" />
+                                        </div>
+                                        <div class="w-full md:w-48">
+                                            <label class="text-[9px] font-black uppercase text-slate-300 ml-4 mb-1 block">Montant (Ar)</label>
+                                            <input type="number" value=${depenseForm.montant} onInput=${e => setDepenseForm({...depenseForm, montant: e.target.value})} placeholder="0" class="w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none text-red-500" />
+                                        </div>
+                                        <button onClick=${addDepense} class="w-full md:w-auto bg-slate-900 text-white px-10 py-4 rounded-2xl font-black uppercase text-[10px] shadow-lg active:scale-95 transition-all">Ajouter</button>
+                                    </div>
+                                </div>
+
+                                <div class="bg-white rounded-[2rem] border overflow-hidden shadow-sm">
+                                    <h4 class="p-6 bg-slate-50 text-[10px] font-black uppercase text-slate-400 border-b">Historique des dépenses</h4>
+                                    <div class="overflow-x-auto">
+                                        <table class="w-full text-left text-sm">
+                                            <tbody class="divide-y font-bold">
+                                                ${depenses.length === 0 ? html`<tr><td class="p-10 text-center text-slate-300 uppercase text-xs">Aucune dépense enregistrée</td></tr>` : 
+                                                  depenses.sort((a,b) => b.timestamp - a.timestamp).map(d => html`
+                                                    <tr class="hover:bg-slate-50 transition-colors">
+                                                        <td class="p-6 text-slate-500 font-medium w-32">${d.date || '-'}</td>
+                                                        <td class="p-6 uppercase tracking-tight">${d.motif}</td>
+                                                        <td class="p-6 text-red-500 font-black text-right">${Number(d.montant).toLocaleString()} Ar</td>
+                                                        <td class="p-6 text-right w-16">
+                                                            <button onClick=${() => deleteItem('depenses', d.id)} class="text-slate-200 hover:text-red-500 transition-colors">X</button>
+                                                        </td>
+                                                    </tr>
+                                                `)}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        `}
+
+                        ${activeTab === 'clients' && html`
+                            <div class="space-y-6">
+                                <div class="bg-white rounded-[2.5rem] border p-8 shadow-sm">
+                                    <h3 class="font-black uppercase text-[10px] text-slate-400 mb-6 tracking-widest">Ajouter au Répertoire</h3>
+                                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                        <input value=${clientForm.nom} onInput=${e => setClientForm({...clientForm, nom: e.target.value})} placeholder="Nom complet" class="p-4 bg-slate-50 rounded-2xl font-bold outline-none text-sm" />
+                                        <input value=${clientForm.telephone} onInput=${e => setClientForm({...clientForm, telephone: e.target.value})} placeholder="Téléphone" class="p-4 bg-slate-50 rounded-2xl font-bold outline-none text-sm" />
+                                        <input value=${clientForm.lieu} onInput=${e => setClientForm({...clientForm, lieu: e.target.value})} placeholder="Ville / Quartier" class="p-4 bg-slate-50 rounded-2xl font-bold outline-none text-sm" />
+                                        <div class="flex gap-2 p-1 bg-slate-100 rounded-2xl">
+                                            <button onClick=${() => setClientForm({...clientForm, source: 'Facebook'})} class="flex-1 flex items-center justify-center gap-1 rounded-xl transition-all ${clientForm.source === 'Facebook' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400'}">
+                                                <${FBIcon} />
+                                            </button>
+                                            <button onClick=${() => setClientForm({...clientForm, source: 'TikTok'})} class="flex-1 flex items-center justify-center gap-1 rounded-xl transition-all ${clientForm.source === 'TikTok' ? 'bg-slate-900 text-white shadow-md' : 'text-slate-400'}">
+                                                <${TTIcon} />
+                                            </button>
+                                        </div>
+                                    </div>
+                                    <div class="mt-4 flex flex-col md:flex-row gap-4">
+                                        <textarea value=${clientForm.remarque} onInput=${e => setClientForm({...clientForm, remarque: e.target.value})} placeholder="Remarque libre..." class="flex-1 p-4 bg-slate-50 rounded-2xl font-bold outline-none text-sm min-h-[60px]"></textarea>
+                                        <button onClick=${addClient} class="md:w-48 bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase text-[10px] shadow-lg hover:bg-indigo-700 active:scale-95 transition-all">Enregistrer</button>
+                                    </div>
+                                </div>
+
+                                <div class="bg-white rounded-[2rem] border overflow-hidden shadow-sm">
+                                    <div class="overflow-x-auto">
+                                        <table class="w-full text-left text-sm">
+                                            <thead class="bg-slate-50 text-[10px] font-black uppercase text-slate-400 border-b">
+                                                <tr><th class="p-6">Client</th><th class="p-6">Contact</th><th class="p-6">Localisation</th><th class="p-6">Source</th><th class="p-6"></th></tr>
+                                            </thead>
+                                            <tbody class="divide-y font-bold">
+                                                ${clients.length === 0 ? html`<tr><td colspan="5" class="p-10 text-center text-slate-300 uppercase text-xs">Répertoire vide</td></tr>` : 
+                                                  clients.sort((a,b) => (a.nom || "").localeCompare(b.nom || "")).map(c => html`
+                                                    <tr class="hover:bg-slate-50 transition-colors">
+                                                        <td class="p-6">
+                                                            <div>${c.nom}</div>
+                                                            <div class="text-[9px] text-slate-400 font-normal italic">${c.remarque || ''}</div>
+                                                        </td>
+                                                        <td class="p-6 text-indigo-600">${c.telephone}</td>
+                                                        <td class="p-6 text-[10px] uppercase opacity-70">${c.lieu || '-'}</td>
+                                                        <td class="p-6">
+                                                            ${c.source === 'TikTok' ? html`<${TTIcon} class="text-slate-900"/>` : html`<${FBIcon} class="text-blue-600"/>`}
+                                                        </td>
+                                                        <td class="p-6 text-right">
+                                                            <button onClick=${() => deleteItem('clients', c.id)} class="text-slate-200 hover:text-red-500 transition-colors">X</button>
+                                                        </td>
+                                                    </tr>
+                                                `)}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        `}
+                    </main>
+                </div>
             `;
         }
 
-        function renderClients() {
-            const t = document.getElementById('clients-list');
-            t.innerHTML = '';
-            state.clients.forEach(c => {
-                t.insertAdjacentHTML('beforeend', `<tr class="hover:bg-slate-50"><td class="px-6 py-4 font-bold">${c.nom}</td><td class="px-6 py-4 font-mono text-indigo-600">${c.telephone || '-'}</td><td class="px-6 py-4"><button onclick="window.delItem('clients','${c.id}')" class="text-slate-200"><i data-lucide="trash-2" class="w-4 h-4"></i></button></td></tr>`);
-            });
-            if (window.lucide) lucide.createIcons();
-        }
-
-        window.delItem = async (col, id) => { if (confirm("Supprimer définitivement ?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id)); };
-        window.updateStatus = async (id, cur) => { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', id), { statut: cur === "Préparation" ? "Livraison" : "Livré" }); };
-        
-        window.switchTab = (t) => {
-            document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
-            document.getElementById(`tab-${t}`).classList.remove('hidden');
-            document.querySelectorAll('.tab-btn').forEach(b => {
-                b.classList.remove('border-indigo-600', 'text-indigo-600', 'bg-indigo-50/30');
-                b.classList.add('border-transparent', 'text-slate-400');
-                if(b.dataset.tab === t) b.classList.add('border-indigo-600', 'text-indigo-600', 'bg-indigo-50/30');
-            });
-            if (window.lucide) lucide.createIcons();
-        };
-
-        document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
-        
-        document.getElementById('btn-save-order').addEventListener('click', async () => {
-            const nom = document.getElementById('order-nom').value;
-            const montant = document.getElementById('order-montant').value;
-            if(!nom || !montant) return showMsg("Nom et montant requis");
-            if(await addData('livraisons', { nom, telephone: document.getElementById('order-tel').value, lieu: document.getElementById('order-lieu').value, montant: Number(montant), type: document.getElementById('order-type').value, statut: "Préparation" })) {
-                ['order-nom','order-tel','order-lieu','order-montant'].forEach(i => document.getElementById(i).value = "");
-                switchTab('livraisons');
-                showMsg("Vente enregistrée !", false);
-            }
-        });
-
-        document.getElementById('btn-add-client').addEventListener('click', async () => {
-            const nom = document.getElementById('c-nom').value;
-            if(!nom) return showMsg("Nom requis");
-            if(await addData('clients', { nom, telephone: document.getElementById('c-tel').value, lieu: document.getElementById('c-lieu').value })) {
-                ['c-nom','c-tel','c-lieu'].forEach(i => document.getElementById(i).value = "");
-                showMsg("Client ajouté !", false);
-            }
-        });
-
-        document.getElementById('btn-add-versement').addEventListener('click', async () => {
-            const m = document.getElementById('v-montant').value;
-            if(m && await addData('versements', { montant: Number(m) })) {
-                document.getElementById('v-montant').value = "";
-                showMsg("Versement ajouté", false);
-            }
-        });
-
-        document.getElementById('btn-add-depense').addEventListener('click', async () => {
-            const m = document.getElementById('d-montant').value;
-            const mo = document.getElementById('d-motif').value;
-            if(m && mo && await addData('depenses', { motif: mo, montant: Number(m) })) {
-                document.getElementById('d-montant').value = ""; document.getElementById('d-motif').value = "";
-                showMsg("Dépense enregistrée", false);
-            }
-        });
-
-        document.getElementById('search-client').addEventListener('input', (e) => {
-            const val = e.target.value.toLowerCase(); const res = document.getElementById('search-results');
-            if(!val) return res.classList.add('hidden');
-            const match = state.clients.filter(c => c.nom.toLowerCase().includes(val) || (c.telephone && c.telephone.includes(val)));
-            if(match.length) {
-                res.innerHTML = match.map(c => `<div onclick="window.fillClient('${c.nom.replace(/'/g,"\\'")}','${c.telephone||''}','${(c.lieu||'').replace(/'/g,"\\'")}')" class="p-4 hover:bg-indigo-50 cursor-pointer border-b"><b class="text-indigo-600">${c.nom}</b> - ${c.telephone||''}</div>`).join('');
-                res.classList.remove('hidden');
-            } else res.classList.add('hidden');
-        });
-        window.fillClient = (n, t, l) => { document.getElementById('order-nom').value = n; document.getElementById('order-tel').value = t; document.getElementById('order-lieu').value = l; document.getElementById('search-results').classList.add('hidden'); document.getElementById('search-client').value = ""; };
+        render(html`<${App} />`, document.body);
     </script>
-</body>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;800&display=swap');
+        body { font-family: 'Plus Jakarta Sans', sans-serif; overflow-x: hidden; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+        input[type="number"]::-webkit-inner-spin-button, 
+        input[type="number"]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    </style>
+</head>
+<body class="bg-slate-50"></body>
 </html>
