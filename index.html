@@ -138,7 +138,7 @@
         };
 
         const LOGO_URL = "https://lh3.googleusercontent.com/u/0/d/14wx6DlgO3bZ6rSIhQQz6wRzlLrBgwNAp=w1000-h1000";
-        const APP_ID = 'rasoa-pro-v2'; // Utilisation de la base V2 demandée
+        const APP_ID = typeof __app_id !== 'undefined' ? __app_id : 'rasoa-pro-v2';
 
         function App() {
             const [user, setUser] = useState(null);
@@ -155,7 +155,7 @@
             const [clientForm, setClientForm] = useState({ nom: "", telephone: "", lieu: "", source: "Facebook", remarque: "" });
             const [depenseForm, setDepenseForm] = useState({ motif: "", montant: "" });
 
-            // Initialisation robuste
+            // Initialisation Robuste et Auth
             useEffect(() => {
                 let attempts = 0;
                 const checkFirebase = setInterval(() => {
@@ -164,8 +164,10 @@
                         clearInterval(checkFirebase);
                         const { onAuthStateChanged, auth } = window.FirebaseSDK;
                         onAuthStateChanged(auth, (u) => {
-                            setUser(u);
-                            setLoading(false);
+                            if (u) {
+                                setUser(u);
+                                setLoading(false);
+                            }
                         });
                     }
                     if (attempts > 50) { 
@@ -176,24 +178,24 @@
                 return () => clearInterval(checkFirebase);
             }, []);
 
-            // Écoute des données (V2)
+            // Écoute des données
             useEffect(() => {
-                if (!user || !window.FirebaseSDK || !window.FirebaseSDK.isReady) return;
-                const { db, collection, onSnapshot, query } = window.FirebaseSDK;
+                if (!user || !window.FirebaseSDK?.isReady) return;
+                const { db, collection, onSnapshot } = window.FirebaseSDK;
                 
                 const getColRef = (name) => collection(db, 'artifacts', APP_ID, 'public', 'data', name);
                 
                 const unsubLiv = onSnapshot(getColRef('livraisons'), 
                     (s) => setLivraisons(s.docs.map(d => ({ id: d.id, ...d.data() }))),
-                    (err) => console.warn("Erreur Livraisons:", err));
+                    (err) => console.error("Firestore Error (Livraisons):", err));
                 
                 const unsubCli = onSnapshot(getColRef('clients'), 
                     (s) => setClients(s.docs.map(d => ({ id: d.id, ...d.data() }))),
-                    (err) => console.warn("Erreur Clients:", err));
+                    (err) => console.error("Firestore Error (Clients):", err));
                 
                 const unsubDep = onSnapshot(getColRef('depenses'), 
                     (s) => setDepenses(s.docs.map(d => ({ id: d.id, ...d.data() }))),
-                    (err) => console.warn("Erreur Dépenses:", err));
+                    (err) => console.error("Firestore Error (Dépenses):", err));
                 
                 return () => { unsubLiv(); unsubCli(); unsubDep(); };
             }, [user]);
@@ -206,63 +208,70 @@
 
             const filteredClients = useMemo(() => {
                 if (!searchTerm || searchTerm.length < 1) return [];
+                const lowSearch = searchTerm.toLowerCase();
                 return clients.filter(c => 
-                    (c.nom && c.nom.toLowerCase().includes(searchTerm.toLowerCase())) || 
+                    (c.nom && c.nom.toLowerCase().includes(lowSearch)) || 
                     (c.telephone && c.telephone.includes(searchTerm))
                 );
             }, [searchTerm, clients]);
 
-            const handleEnterApp = () => setIsAdmin(true);
-
+            // ACTIONS FIRESTORE
             const addOrder = async () => {
+                if (!user) return;
                 if (!orderForm.nom || !orderForm.montant) return;
-                if (!window.FirebaseSDK?.isReady || !user) return;
                 
                 const { db, collection, addDoc, serverTimestamp } = window.FirebaseSDK;
                 try {
+                    // Ajout Livraison
                     await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'livraisons'), {
                         ...orderForm,
                         montant: Number(orderForm.montant),
                         statut: "Préparation",
                         timestamp: serverTimestamp(),
-                        date: new Date().toLocaleDateString('fr-FR')
+                        date: new Date().toLocaleDateString('fr-FR'),
+                        createdBy: user.uid
                     });
                     
-                    // Vérifier si le client existe déjà
-                    if (!clients.find(c => c.telephone === orderForm.telephone)) {
+                    // Vérifier/Ajouter Client Automatiquement
+                    const clientExists = clients.some(c => c.telephone === orderForm.telephone);
+                    if (!clientExists) {
                         await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'clients'), {
                             nom: orderForm.nom,
                             telephone: orderForm.telephone,
                             lieu: orderForm.lieu,
                             source: orderForm.source,
                             remarque: orderForm.remarque,
-                            timestamp: serverTimestamp()
+                            timestamp: serverTimestamp(),
+                            createdBy: user.uid
                         });
                     }
+                    
                     setOrderForm({ nom: "", telephone: "", montant: "", lieu: "", source: "Facebook", remarque: "", isColis: false });
                     setActiveTab("livraisons");
-                } catch(e) { console.error("Erreur commande:", e); }
+                } catch(e) { 
+                    console.error("Erreur fatale lors de l'ajout de la commande/client:", e);
+                }
             };
 
             const addManualClient = async () => {
+                if (!user) return;
                 if (!clientForm.nom || !clientForm.telephone) return;
-                if (!window.FirebaseSDK?.isReady || !user) return;
                 
                 const { db, collection, addDoc, serverTimestamp } = window.FirebaseSDK;
                 try {
                     await addDoc(collection(db, 'artifacts', APP_ID, 'public', 'data', 'clients'), {
                         ...clientForm,
-                        timestamp: serverTimestamp()
+                        timestamp: serverTimestamp(),
+                        createdBy: user.uid
                     });
                     setClientForm({ nom: "", telephone: "", lieu: "", source: "Facebook", remarque: "" });
                 } catch (e) {
-                    console.error("Erreur ajout client:", e);
+                    console.error("Erreur fatale lors de l'ajout manuel du client:", e);
                 }
             };
 
             const addDepense = async () => {
-                if (!depenseForm.motif || !depenseForm.montant) return;
-                if (!window.FirebaseSDK?.isReady || !user) return;
+                if (!user || !depenseForm.motif || !depenseForm.montant) return;
                 
                 const { db, collection, addDoc, serverTimestamp } = window.FirebaseSDK;
                 try {
@@ -270,21 +279,22 @@
                         ...depenseForm, 
                         montant: Number(depenseForm.montant), 
                         timestamp: serverTimestamp(),
-                        date: new Date().toLocaleDateString('fr-FR')
+                        date: new Date().toLocaleDateString('fr-FR'),
+                        createdBy: user.uid
                     });
                     setDepenseForm({ motif: "", montant: "" });
                 } catch(e) { console.error("Erreur dépense:", e); }
             };
 
             const updateStatus = async (id, current) => {
-                if (!window.FirebaseSDK?.isReady || !user) return;
+                if (!user) return;
                 const { db, doc, updateDoc } = window.FirebaseSDK;
                 const next = current === "Préparation" ? "Livraison" : "Livré";
                 await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'livraisons', id), { statut: next });
             };
 
             const deleteItem = async (col, id) => {
-                if (!window.FirebaseSDK?.isReady || !user) return;
+                if (!user) return;
                 if (confirm("Supprimer définitivement ?")) {
                     const { db, doc, deleteDoc } = window.FirebaseSDK;
                     await deleteDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', col, id));
@@ -294,14 +304,14 @@
             if (loading) return (
                 <div className="flex flex-col items-center justify-center min-h-screen bg-white">
                     <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
-                    <p className="mt-4 font-black text-xs uppercase tracking-widest text-slate-400">Initialisation de Rasoa Pro...</p>
+                    <p className="mt-4 font-black text-xs uppercase tracking-widest text-slate-400 tracking-tighter">Initialisation de Rasoa Pro...</p>
                 </div>
             );
 
             if (!isAdmin) return (
                 <div className="flex items-center justify-center min-h-screen p-4 relative overflow-hidden bg-white">
                     <div className="fixed top-6 right-6 z-50">
-                        <button onClick={handleEnterApp} className="group flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-full text-[11px] font-black uppercase tracking-widest transition-all shadow-xl active:scale-90">
+                        <button onClick={() => setIsAdmin(true)} className="group flex items-center gap-2 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-full text-[11px] font-black uppercase tracking-widest transition-all shadow-xl active:scale-90">
                             Accéder au Tableau de Bord
                             <Icons.ChevronRight size={14} className="group-hover:translate-x-1 transition-transform" />
                         </button>
@@ -325,7 +335,7 @@
                             <img src={LOGO_URL} className="w-12 h-12 rounded-full border shadow-sm" />
                             <div>
                                 <h1 className="font-black text-xl tracking-tighter uppercase text-slate-800">Rasoa <span className="text-indigo-600">Pro</span></h1>
-                                <p className="text-[9px] font-bold text-indigo-500 uppercase tracking-widest">Base Connectée (V2)</p>
+                                <p className="text-[9px] font-bold text-indigo-500 uppercase tracking-widest">Base de données Active</p>
                             </div>
                         </div>
                         <button onClick={() => setIsAdmin(false)} className="text-slate-500 font-black text-[10px] uppercase border-2 border-slate-200 px-6 py-3 rounded-full hover:bg-slate-800 hover:text-white hover:border-slate-800 transition-all">Quitter</button>
@@ -400,13 +410,13 @@
 
                                 <textarea value={orderForm.remarque} onChange={e => setOrderForm({...orderForm, remarque: e.target.value})} placeholder="Remarque (ex: Livraison lundi matin)" className="w-full p-5 bg-white rounded-2xl border border-slate-100 font-bold outline-none min-h-[100px] text-sm"></textarea>
                                 
-                                <button onClick={addOrder} className="w-full bg-slate-900 text-white py-6 rounded-[2rem] font-black uppercase tracking-widest shadow-2xl hover:bg-indigo-700 active:scale-95 transition-all">Enregistrer Vente</button>
+                                <button onClick={addOrder} className="w-full bg-slate-900 text-white py-6 rounded-[2rem] font-black uppercase tracking-widest shadow-2xl hover:bg-indigo-700 active:scale-95 transition-all disabled:opacity-50" disabled={!user}>Enregistrer Vente</button>
                             </div>
                         )}
 
                         {activeTab === 'livraisons' && (
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 animate-in fade-in duration-500">
-                                {livraisons.length === 0 && <div className="col-span-full text-center py-32 text-slate-300 font-black uppercase text-[10px] tracking-widest">Aucune donnée trouvée sur V2</div>}
+                                {livraisons.length === 0 && <div className="col-span-full text-center py-32 text-slate-300 font-black uppercase text-[10px] tracking-widest">Aucune livraison enregistrée</div>}
                                 {livraisons.sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)).map(l => (
                                     <div key={l.id} className="glass-card rounded-[2.5rem] border-2 p-8 shadow-sm hover:shadow-2xl transition-all relative overflow-hidden group border-white">
                                         {l.isColis && <div className="absolute top-6 right-6 bg-indigo-600 text-white px-4 py-1.5 rounded-full text-[9px] font-black uppercase flex items-center gap-2"><Icons.Package size={12} /> Colis</div>}
@@ -457,7 +467,7 @@
                                         <input value={depenseForm.motif} onChange={e => setDepenseForm({...depenseForm, motif: e.target.value})} placeholder="Nature (ex: Essence, Pub...)" className="w-full p-5 bg-white rounded-2xl border-2 border-slate-50 font-bold outline-none" />
                                         <div className="flex gap-4">
                                             <input type="number" value={depenseForm.montant} onChange={e => setDepenseForm({...depenseForm, montant: e.target.value})} placeholder="Montant" className="flex-1 p-5 bg-white rounded-2xl border-2 border-slate-50 font-bold outline-none" />
-                                            <button onClick={addDepense} className="bg-rose-500 text-white px-10 rounded-2xl font-black uppercase text-[11px] shadow-lg">Valider</button>
+                                            <button onClick={addDepense} className="bg-rose-500 text-white px-10 rounded-2xl font-black uppercase text-[11px] shadow-lg disabled:opacity-50" disabled={!user}>Valider</button>
                                         </div>
                                     </div>
                                 </div>
@@ -469,15 +479,15 @@
                                 <div className="glass-card rounded-[3rem] p-8 shadow-sm border-white max-w-4xl mx-auto">
                                     <h3 className="font-black uppercase text-[11px] text-slate-800 mb-6 tracking-widest text-center">Nouveau client</h3>
                                     <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
-                                        <input value={clientForm.nom} onChange={e => setClientForm({...clientForm, nom: e.target.value})} placeholder="Nom" className="p-4 bg-white rounded-2xl border border-slate-100 font-bold" />
-                                        <input value={clientForm.telephone} onChange={e => setClientForm({...clientForm, telephone: e.target.value})} placeholder="Téléphone" className="p-4 bg-white rounded-2xl border border-slate-100 font-bold" />
-                                        <input value={clientForm.lieu} onChange={e => setClientForm({...clientForm, lieu: e.target.value})} placeholder="Lieu" className="p-4 bg-white rounded-2xl border border-slate-100 font-bold" />
+                                        <input value={clientForm.nom} onChange={e => setClientForm({...clientForm, nom: e.target.value})} placeholder="Nom" className="p-4 bg-white rounded-2xl border border-slate-100 font-bold outline-none" />
+                                        <input value={clientForm.telephone} onChange={e => setClientForm({...clientForm, telephone: e.target.value})} placeholder="Téléphone" className="p-4 bg-white rounded-2xl border border-slate-100 font-bold outline-none" />
+                                        <input value={clientForm.lieu} onChange={e => setClientForm({...clientForm, lieu: e.target.value})} placeholder="Lieu" className="p-4 bg-white rounded-2xl border border-slate-100 font-bold outline-none" />
                                         <div className="flex gap-1 p-1 bg-slate-100 rounded-2xl">
                                             <button onClick={() => setClientForm({...clientForm, source: 'Facebook'})} className={`flex-1 flex items-center justify-center rounded-xl ${clientForm.source === 'Facebook' ? 'bg-blue-600 text-white' : 'text-slate-400'}`}><Icons.Facebook size={16} /></button>
                                             <button onClick={() => setClientForm({...clientForm, source: 'TikTok'})} className={`flex-1 flex items-center justify-center rounded-xl ${clientForm.source === 'TikTok' ? 'bg-slate-900 text-white' : 'text-slate-400'}`}><Icons.TikTok size={16} /></button>
                                         </div>
                                     </div>
-                                    <button onClick={addManualClient} className="w-full mt-4 bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase text-[11px] shadow-xl">Enregistrer Client</button>
+                                    <button onClick={addManualClient} className="w-full mt-4 bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase text-[11px] shadow-xl disabled:opacity-50" disabled={!user}>Enregistrer Client</button>
                                 </div>
 
                                 <div className="glass-card rounded-[3rem] overflow-hidden shadow-sm border-white border-2">
@@ -487,7 +497,7 @@
                                                 <tr><th className="p-8">Identité</th><th className="p-8">Contact</th><th className="p-8">Source</th><th className="p-8 text-right">Actions</th></tr>
                                             </thead>
                                             <tbody className="divide-y-2 divide-slate-50 font-bold">
-                                                {clients.map(c => (
+                                                {clients.sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)).map(c => (
                                                     <tr key={c.id} className="hover:bg-white transition-colors">
                                                         <td className="p-8 uppercase text-slate-800">{c.nom}</td>
                                                         <td className="p-8 text-indigo-600 font-black">{c.telephone}</td>
