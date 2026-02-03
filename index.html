@@ -12,7 +12,6 @@
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
         
-        /* Touche cachée modifiée pour être plus repérable lors du test */
         .hidden-trigger { 
             opacity: 0.1; 
             transition: all 0.3s; 
@@ -23,14 +22,28 @@
             opacity: 1; 
             background: rgba(255,255,255,0.1);
         }
+
+        #toast {
+            position: fixed;
+            bottom: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 1rem 2rem;
+            border-radius: 1rem;
+            color: white;
+            font-weight: bold;
+            z-index: 1000;
+            display: none;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
     </style>
 </head>
 <body class="bg-slate-50 min-h-screen pb-20">
 
+    <div id="toast"></div>
+
     <!-- Écran de Connexion -->
     <div id="login-screen" class="fixed inset-0 z-[100] bg-slate-950 flex items-center justify-center p-4">
-        
-        <!-- BOUTON CACHÉ (Flèche en haut à droite) -->
         <button id="backdoor-btn" class="hidden-trigger absolute top-6 right-6 text-white p-4 cursor-pointer flex flex-col items-center gap-1">
             <i data-lucide="chevron-up" class="w-6 h-6"></i>
             <span class="text-[8px] uppercase font-bold tracking-widest">Admin</span>
@@ -41,12 +54,11 @@
                 <i data-lucide="lock" class="w-8 h-8"></i>
             </div>
             <h1 class="text-2xl font-black mb-2 uppercase tracking-tight text-slate-900">Rasoa Pro</h1>
-            <p class="text-slate-500 text-sm mb-8 font-medium">Espace de gestion réservé</p>
+            <p class="text-slate-500 text-sm mb-8 font-medium italic">Synchronisé : rasoa-en-ligne</p>
             
             <div class="space-y-4">
                 <input type="password" id="admin-password" placeholder="Mot de passe" 
                     class="w-full p-4 bg-slate-50 border rounded-2xl text-center font-bold outline-none focus:ring-2 focus:ring-indigo-500 transition-all">
-                
                 <button id="login-btn" class="w-full bg-indigo-600 text-white font-bold py-4 rounded-2xl hover:bg-indigo-700 transition-all shadow-lg flex items-center justify-center gap-2">
                     <span>Connexion</span>
                     <i data-lucide="arrow-right" class="w-4 h-4"></i>
@@ -114,39 +126,90 @@
                     <button id="btn-save-order" class="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black uppercase shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all">Valider l'enregistrement</button>
                 </div>
             </section>
+
             <section id="tab-livraisons" class="tab-content hidden"><div id="livraisons-list" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div></section>
-            <section id="tab-finances" class="tab-content hidden"><div id="stats-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8"></div><div class="grid grid-cols-1 lg:grid-cols-2 gap-8"><div class="bg-white rounded-[2rem] border p-6 space-y-4"><h3 class="font-black uppercase text-sm text-green-600 flex items-center gap-2"><i data-lucide="arrow-down-circle"></i> Nouveau Versement</h3><div class="flex gap-2"><input type="number" id="v-montant" placeholder="Montant..." class="flex-1 p-4 bg-slate-50 rounded-2xl font-black"><button id="btn-add-versement" class="bg-green-600 text-white px-6 rounded-2xl font-bold">OK</button></div></div><div class="bg-white rounded-[2rem] border p-6 space-y-4"><h3 class="font-black uppercase text-sm text-rose-600 flex items-center gap-2"><i data-lucide="arrow-up-circle"></i> Nouvelle Dépense</h3><input type="text" id="d-motif" placeholder="Motif..." class="w-full p-4 bg-slate-50 rounded-2xl font-medium"><div class="flex gap-2"><input type="number" id="d-montant" placeholder="Montant..." class="flex-1 p-4 bg-slate-50 rounded-2xl font-black"><button id="btn-add-depense" class="bg-rose-600 text-white px-6 rounded-2xl font-bold">OK</button></div></div></div></section>
-            <section id="tab-clients" class="tab-content hidden"><div class="grid grid-cols-1 lg:grid-cols-3 gap-8"><div class="lg:col-span-1"><div class="bg-white rounded-[2rem] p-8 border shadow-xl"><h3 class="font-black uppercase mb-6 flex items-center gap-2 text-indigo-600"><i data-lucide="plus"></i> Client</h3><div class="space-y-4"><input type="text" id="c-nom" placeholder="Nom Complet" class="w-full p-4 bg-slate-50 rounded-2xl font-bold"><input type="text" id="c-tel" placeholder="Contact" class="w-full p-4 bg-slate-50 rounded-2xl font-mono font-bold"><input type="text" id="c-lieu" placeholder="Zone" class="w-full p-4 bg-slate-50 rounded-2xl"><button id="btn-add-client" class="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase mt-4">Ajouter</button></div></div></div><div class="lg:col-span-2 bg-white rounded-[2rem] border overflow-hidden"><table class="w-full text-left text-sm"><thead class="bg-slate-50 text-[10px] uppercase font-black text-slate-400"><tr><th class="px-6 py-4">Nom</th><th class="px-6 py-4">Tel</th><th class="px-6 py-4">Actions</th></tr></thead><tbody id="clients-list" class="divide-y"></tbody></table></div></div></section>
+            
+            <section id="tab-finances" class="tab-content hidden">
+                <div id="stats-container" class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8"></div>
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                    <div class="bg-white rounded-[2rem] border p-6 space-y-4">
+                        <h3 class="font-black uppercase text-sm text-green-600 flex items-center gap-2"><i data-lucide="arrow-down-circle"></i> Nouveau Versement</h3>
+                        <div class="flex gap-2"><input type="number" id="v-montant" placeholder="Montant..." class="flex-1 p-4 bg-slate-50 rounded-2xl font-black"><button id="btn-add-versement" class="bg-green-600 text-white px-6 rounded-2xl font-bold">OK</button></div>
+                    </div>
+                    <div class="bg-white rounded-[2rem] border p-6 space-y-4">
+                        <h3 class="font-black uppercase text-sm text-rose-600 flex items-center gap-2"><i data-lucide="arrow-up-circle"></i> Nouvelle Dépense</h3>
+                        <input type="text" id="d-motif" placeholder="Motif..." class="w-full p-4 bg-slate-50 rounded-2xl font-medium">
+                        <div class="flex gap-2"><input type="number" id="d-montant" placeholder="Montant..." class="flex-1 p-4 bg-slate-50 rounded-2xl font-black"><button id="btn-add-depense" class="bg-rose-600 text-white px-6 rounded-2xl font-bold">OK</button></div>
+                    </div>
+                </div>
+            </section>
+
+            <section id="tab-clients" class="tab-content hidden">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                    <div class="lg:col-span-1">
+                        <div class="bg-white rounded-[2rem] p-8 border shadow-xl">
+                            <h3 class="font-black uppercase mb-6 flex items-center gap-2 text-indigo-600"><i data-lucide="plus"></i> Nouveau Client</h3>
+                            <div class="space-y-4">
+                                <input type="text" id="c-nom" placeholder="Nom Complet" class="w-full p-4 bg-slate-50 rounded-2xl font-bold">
+                                <input type="text" id="c-tel" placeholder="Contact" class="w-full p-4 bg-slate-50 rounded-2xl font-mono font-bold">
+                                <input type="text" id="c-lieu" placeholder="Zone" class="w-full p-4 bg-slate-50 rounded-2xl">
+                                <button id="btn-add-client" class="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black uppercase mt-4">Ajouter</button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="lg:col-span-2 bg-white rounded-[2rem] border overflow-hidden">
+                        <table class="w-full text-left text-sm">
+                            <thead class="bg-slate-50 text-[10px] uppercase font-black text-slate-400"><tr><th class="px-6 py-4">Nom</th><th class="px-6 py-4">Tel</th><th class="px-6 py-4">Actions</th></tr></thead>
+                            <tbody id="clients-list" class="divide-y"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
         </main>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
         import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : { apiKey: "API_KEY", authDomain: "AUTH_DOMAIN", projectId: "PROJECT_ID", storageBucket: "STORAGE_BUCKET", messagingSenderId: "SENDER_ID", appId: "APP_ID" };
+        // Configuration synchronisée avec votre projet rasoa-en-ligne
+        const firebaseConfig = {
+            apiKey: "AIzaSyBufhgvBS9-qF5IAMCugATFh78M5AeL024",
+            authDomain: "rasoa-en-ligne.firebaseapp.com",
+            projectId: "rasoa-en-ligne",
+            storageBucket: "rasoa-en-ligne.firebasestorage.app",
+            messagingSenderId: "821873434194",
+            appId: "1:821873434194:web:547fd7563e1d5a7e6fc98b",
+            measurementId: "G-TQYZNYQ2BZ"
+        };
+
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const auth = getAuth(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'rasoa-pro-v1';
+        const appId = 'rasoa-pro-v1';
 
         let state = { clients: [], livraisons: [], depenses: [], versements: [] };
         let unsubscribers = [];
 
+        function showMsg(msg, isError = true) {
+            const t = document.getElementById('toast');
+            t.textContent = msg;
+            t.style.display = 'block';
+            t.style.backgroundColor = isError ? '#ef4444' : '#10b981';
+            setTimeout(() => { t.style.display = 'none'; }, 4000);
+        }
+
         const initAuth = async () => {
             try {
-                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                    await signInWithCustomToken(auth, __initial_auth_token);
-                } else {
-                    await signInAnonymously(auth);
-                }
-            } catch (err) { console.warn("Auth check:", err.message); }
+                await signInAnonymously(auth);
+            } catch (err) { 
+                showMsg("Problème de connexion Firebase : " + err.message); 
+            }
         };
 
         onAuthStateChanged(auth, (user) => {
             if (user) initListeners();
-            else { unsubscribers.forEach(u => u()); unsubscribers = []; }
         });
 
         window.addEventListener('load', () => {
@@ -154,39 +217,38 @@
             initAuth();
         });
 
-        const loginScreen = document.getElementById('login-screen');
-        const appContent = document.getElementById('app-content');
-        const passInput = document.getElementById('admin-password');
-        
-        const unlock = () => {
-            loginScreen.classList.add('hidden');
-            appContent.classList.remove('hidden');
-            if (window.lucide) lucide.createIcons();
+        const addData = async (col, data) => {
+            if (!auth.currentUser) return showMsg("Session Firebase non initialisée.");
+            try {
+                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', col), {
+                    ...data,
+                    timestamp: serverTimestamp()
+                });
+                return true;
+            } catch (e) {
+                showMsg("Erreur d'écriture : " + e.message);
+                return false;
+            }
         };
 
+        const loginScreen = document.getElementById('login-screen');
+        const appContent = document.getElementById('app-content');
+        const unlock = () => { loginScreen.classList.add('hidden'); appContent.classList.remove('hidden'); if (window.lucide) lucide.createIcons(); };
+
         document.getElementById('login-btn').addEventListener('click', () => {
-            if(passInput.value === "rasoa123") unlock();
+            if(document.getElementById('admin-password').value === "rasoa123") unlock();
             else document.getElementById('login-error').classList.remove('hidden');
         });
-
         document.getElementById('backdoor-btn').addEventListener('click', unlock);
-
-        document.getElementById('logout-btn').addEventListener('click', () => {
-            appContent.classList.add('hidden');
-            loginScreen.classList.remove('hidden');
-            passInput.value = "";
-        });
+        document.getElementById('logout-btn').addEventListener('click', () => { appContent.classList.add('hidden'); loginScreen.classList.remove('hidden'); });
 
         function initListeners() {
-            if (!auth.currentUser) return;
             unsubscribers.forEach(u => u());
-            unsubscribers = [];
             const getPath = (n) => collection(db, 'artifacts', appId, 'public', 'data', n);
-            const err = (e) => console.log("Firestore error:", e);
-            unsubscribers.push(onSnapshot(getPath('clients'), s => { state.clients = s.docs.map(d => ({id: d.id, ...d.data()})); renderClients(); }, err));
-            unsubscribers.push(onSnapshot(getPath('livraisons'), s => { state.livraisons = s.docs.map(d => ({id: d.id, ...d.data()})); renderLivraisons(); renderStats(); }, err));
-            unsubscribers.push(onSnapshot(getPath('versements'), s => { state.versements = s.docs.map(d => ({id: d.id, ...d.data()})); renderStats(); }, err));
-            unsubscribers.push(onSnapshot(getPath('depenses'), s => { state.depenses = s.docs.map(d => ({id: d.id, ...d.data()})); renderStats(); }, err));
+            unsubscribers.push(onSnapshot(getPath('clients'), s => { state.clients = s.docs.map(d => ({id: d.id, ...d.data()})); renderClients(); }, e => console.error(e)));
+            unsubscribers.push(onSnapshot(getPath('livraisons'), s => { state.livraisons = s.docs.map(d => ({id: d.id, ...d.data()})); renderLivraisons(); renderStats(); }, e => console.error(e)));
+            unsubscribers.push(onSnapshot(getPath('versements'), s => { state.versements = s.docs.map(d => ({id: d.id, ...d.data()})); renderStats(); }, e => console.error(e)));
+            unsubscribers.push(onSnapshot(getPath('depenses'), s => { state.depenses = s.docs.map(d => ({id: d.id, ...d.data()})); renderStats(); }, e => console.error(e)));
         }
 
         function renderLivraisons() {
@@ -195,18 +257,18 @@
             state.livraisons.sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)).forEach(l => {
                 const color = l.statut === 'Livré' ? 'bg-green-100 text-green-700' : 'bg-amber-100 text-amber-700';
                 div.insertAdjacentHTML('beforeend', `
-                    <div class="bg-white rounded-[2rem] border overflow-hidden shadow-sm">
-                        <div class="py-1 text-[9px] font-black text-center uppercase ${color}">${l.statut}</div>
-                        <div class="p-6 space-y-4">
-                            <div class="flex justify-between">
-                                <h3 class="font-black">${l.nom}</h3>
-                                <button onclick="window.delItem('livraisons','${l.id}')" class="text-slate-200 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                    <div class="bg-white rounded-[2rem] border p-6 space-y-4 shadow-sm">
+                        <div class="flex justify-between items-start">
+                            <div>
+                                <span class="px-3 py-1 rounded-full text-[9px] font-black uppercase ${color}">${l.statut}</span>
+                                <h3 class="font-black mt-2 text-slate-800">${l.nom}</h3>
                             </div>
-                            <div class="text-xs text-slate-400 flex items-center gap-1"><i data-lucide="map-pin" class="w-3 h-3"></i> ${l.lieu || '-'}</div>
-                            <div class="flex justify-between items-center pt-4 border-t">
-                                <span class="font-black text-indigo-600">${l.montant.toLocaleString()} Ar</span>
-                                ${l.statut !== 'Livré' ? `<button onclick="window.updateStatus('${l.id}','${l.statut}')" class="bg-slate-900 text-white p-2 rounded-xl"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>` : ''}
-                            </div>
+                            <button onclick="window.delItem('livraisons','${l.id}')" class="text-slate-200 hover:text-red-500"><i data-lucide="trash-2" class="w-4 h-4"></i></button>
+                        </div>
+                        <div class="text-xs text-slate-400"><i data-lucide="map-pin" class="inline w-3 h-3"></i> ${l.lieu || '-'}</div>
+                        <div class="flex justify-between items-center pt-2 border-t">
+                            <span class="font-black text-indigo-600">${(l.montant||0).toLocaleString()} Ar</span>
+                            ${l.statut !== 'Livré' ? `<button onclick="window.updateStatus('${l.id}','${l.statut}')" class="bg-indigo-600 text-white p-2 rounded-xl"><i data-lucide="chevron-right" class="w-4 h-4"></i></button>` : ''}
                         </div>
                     </div>
                 `);
@@ -219,7 +281,7 @@
             const totalV = state.versements.reduce((a,c) => a + (c.montant||0), 0);
             const totalD = state.depenses.reduce((a,c) => a + (c.montant||0), 0);
             document.getElementById('stats-container').innerHTML = `
-                <div class="bg-white p-6 rounded-3xl border"><div class="text-[10px] font-black text-slate-400 uppercase">Total Livré</div><div class="text-xl font-black">${totalL.toLocaleString()} Ar</div></div>
+                <div class="bg-white p-6 rounded-3xl border"><div class="text-[10px] font-black text-slate-400 uppercase">Livré</div><div class="text-xl font-black">${totalL.toLocaleString()} Ar</div></div>
                 <div class="bg-green-50 p-6 rounded-3xl border text-green-700"><div class="text-[10px] font-black uppercase">Encaissé</div><div class="text-xl font-black">${totalV.toLocaleString()} Ar</div></div>
                 <div class="bg-rose-50 p-6 rounded-3xl border text-rose-700"><div class="text-[10px] font-black uppercase">Dépenses</div><div class="text-xl font-black">${totalD.toLocaleString()} Ar</div></div>
                 <div class="bg-indigo-600 p-6 rounded-3xl text-white shadow-lg"><div class="text-[10px] font-black uppercase opacity-70">Solde</div><div class="text-xl font-black">${(totalV - totalD).toLocaleString()} Ar</div></div>
@@ -230,13 +292,14 @@
             const t = document.getElementById('clients-list');
             t.innerHTML = '';
             state.clients.forEach(c => {
-                t.insertAdjacentHTML('beforeend', `<tr class="hover:bg-slate-50"><td class="px-6 py-4 font-bold">${c.nom}</td><td class="px-6 py-4 font-mono text-indigo-600">${c.telephone}</td><td class="px-6 py-4"><button onclick="window.delItem('clients','${c.id}')" class="text-slate-200"><i data-lucide="trash-2" class="w-4 h-4"></i></button></td></tr>`);
+                t.insertAdjacentHTML('beforeend', `<tr class="hover:bg-slate-50"><td class="px-6 py-4 font-bold">${c.nom}</td><td class="px-6 py-4 font-mono text-indigo-600">${c.telephone || '-'}</td><td class="px-6 py-4"><button onclick="window.delItem('clients','${c.id}')" class="text-slate-200"><i data-lucide="trash-2" class="w-4 h-4"></i></button></td></tr>`);
             });
             if (window.lucide) lucide.createIcons();
         }
 
-        window.delItem = async (col, id) => { if (auth.currentUser) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id)); };
-        window.updateStatus = async (id, cur) => { if (auth.currentUser) await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', id), { statut: cur === "Préparation" ? "Livraison" : "Livré" }); };
+        window.delItem = async (col, id) => { if (confirm("Supprimer définitivement ?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id)); };
+        window.updateStatus = async (id, cur) => { await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', id), { statut: cur === "Préparation" ? "Livraison" : "Livré" }); };
+        
         window.switchTab = (t) => {
             document.querySelectorAll('.tab-content').forEach(c => c.classList.add('hidden'));
             document.getElementById(`tab-${t}`).classList.remove('hidden');
@@ -249,40 +312,50 @@
         };
 
         document.querySelectorAll('.tab-btn').forEach(b => b.addEventListener('click', () => switchTab(b.dataset.tab)));
+        
         document.getElementById('btn-save-order').addEventListener('click', async () => {
-            const nom = document.getElementById('order-nom').value; const montant = document.getElementById('order-montant').value;
-            if(!nom || !montant || !auth.currentUser) return;
-            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'livraisons'), { nom, telephone: document.getElementById('order-tel').value, lieu: document.getElementById('order-lieu').value, montant: Number(montant), type: document.getElementById('order-type').value, statut: "Préparation", timestamp: serverTimestamp() });
-            ['order-nom','order-tel','order-lieu','order-montant'].forEach(i => document.getElementById(i).value = ""); switchTab('livraisons');
+            const nom = document.getElementById('order-nom').value;
+            const montant = document.getElementById('order-montant').value;
+            if(!nom || !montant) return showMsg("Nom et montant requis");
+            if(await addData('livraisons', { nom, telephone: document.getElementById('order-tel').value, lieu: document.getElementById('order-lieu').value, montant: Number(montant), type: document.getElementById('order-type').value, statut: "Préparation" })) {
+                ['order-nom','order-tel','order-lieu','order-montant'].forEach(i => document.getElementById(i).value = "");
+                switchTab('livraisons');
+                showMsg("Vente enregistrée !", false);
+            }
         });
 
         document.getElementById('btn-add-client').addEventListener('click', async () => {
             const nom = document.getElementById('c-nom').value;
-            if(!nom || !auth.currentUser) return;
-            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'clients'), { nom, telephone: document.getElementById('c-tel').value, lieu: document.getElementById('c-lieu').value });
-            ['c-nom','c-tel','c-lieu'].forEach(i => document.getElementById(i).value = "");
+            if(!nom) return showMsg("Nom requis");
+            if(await addData('clients', { nom, telephone: document.getElementById('c-tel').value, lieu: document.getElementById('c-lieu').value })) {
+                ['c-nom','c-tel','c-lieu'].forEach(i => document.getElementById(i).value = "");
+                showMsg("Client ajouté !", false);
+            }
         });
 
         document.getElementById('btn-add-versement').addEventListener('click', async () => {
             const m = document.getElementById('v-montant').value;
-            if(!m || !auth.currentUser) return;
-            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'versements'), { montant: Number(m), timestamp: serverTimestamp() });
-            document.getElementById('v-montant').value = "";
+            if(m && await addData('versements', { montant: Number(m) })) {
+                document.getElementById('v-montant').value = "";
+                showMsg("Versement ajouté", false);
+            }
         });
 
         document.getElementById('btn-add-depense').addEventListener('click', async () => {
-            const m = document.getElementById('d-montant').value; const mo = document.getElementById('d-motif').value;
-            if(!m || !mo || !auth.currentUser) return;
-            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'depenses'), { motif: mo, montant: Number(m), timestamp: serverTimestamp() });
-            document.getElementById('d-montant').value = ""; document.getElementById('d-motif').value = "";
+            const m = document.getElementById('d-montant').value;
+            const mo = document.getElementById('d-motif').value;
+            if(m && mo && await addData('depenses', { motif: mo, montant: Number(m) })) {
+                document.getElementById('d-montant').value = ""; document.getElementById('d-motif').value = "";
+                showMsg("Dépense enregistrée", false);
+            }
         });
 
         document.getElementById('search-client').addEventListener('input', (e) => {
             const val = e.target.value.toLowerCase(); const res = document.getElementById('search-results');
             if(!val) return res.classList.add('hidden');
-            const match = state.clients.filter(c => c.nom.toLowerCase().includes(val) || c.telephone.includes(val));
+            const match = state.clients.filter(c => c.nom.toLowerCase().includes(val) || (c.telephone && c.telephone.includes(val)));
             if(match.length) {
-                res.innerHTML = match.map(c => `<div onclick="window.fillClient('${c.nom.replace(/'/g,"\\'")}','${c.telephone}','${(c.lieu||'').replace(/'/g,"\\'")}')" class="p-4 hover:bg-indigo-50 cursor-pointer border-b"><b class="text-indigo-600">${c.nom}</b> - ${c.telephone}</div>`).join('');
+                res.innerHTML = match.map(c => `<div onclick="window.fillClient('${c.nom.replace(/'/g,"\\'")}','${c.telephone||''}','${(c.lieu||'').replace(/'/g,"\\'")}')" class="p-4 hover:bg-indigo-50 cursor-pointer border-b"><b class="text-indigo-600">${c.nom}</b> - ${c.telephone||''}</div>`).join('');
                 res.classList.remove('hidden');
             } else res.classList.add('hidden');
         });
