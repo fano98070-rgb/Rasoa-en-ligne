@@ -1,341 +1,317 @@
-import React, { useState, useEffect } from 'react';
+import { Component, signal, computed, inject, OnInit } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 import { initializeApp } from 'firebase/app';
 import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, serverTimestamp, query, orderBy } from 'firebase/firestore';
 import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from 'firebase/auth';
-import { ShoppingCart, Truck, Users, Wallet, LogOut, Plus, Trash2, MapPin, X, CheckCircle2, Facebook, Music, UserPlus } from 'lucide-react';
 
-// --- Configuration Firebase ---
-const firebaseConfig = JSON.parse(__firebase_config);
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'rasoa-pro-v1';
-
-// Composant Logo SVG (Remplace l'image Drive qui ne s'affiche pas)
-const Logo = ({ className }) => (
-  <div class={`bg-indigo-600 flex items-center justify-center text-white font-black overflow-hidden ${className}`}>
-<span class="text-xl">R</span>
-</div>
-);
-
-export default function App() {
-    const [user, setUser] = useState(null);
-    const [activeTab, setActiveTab] = useState('vente');
-    const [isAuthenticated, setIsAuthenticated] = useState(false);
-    const [pin, setPin] = useState('');
-    const [loginError, setLoginError] = useState(false);
-    const [showClientModal, setShowClientModal] = useState(false);
-    
-    // Data State
-    const [livraisons, setLivraisons] = useState([]);
-    const [clients, setClients] = useState([]);
-
-    // Auth logic
-    useEffect(() => {
-        const initAuth = async () => {
-            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                await signInWithCustomToken(auth, __initial_auth_token);
-            } else {
-                await signInAnonymously(auth);
+@Component({
+  selector: 'app-root',
+  standalone: true,
+  imports: [CommonModule, FormsModule],
+  template: `
+    <div class="min-h-screen bg-slate-50 font-sans text-slate-900">
+      
+      <!-- ÉCRAN DE CONNEXION -->
+      @if (!isAuthenticated()) {
+        <div class="min-h-screen flex items-center justify-center p-6 bg-slate-900">
+          <div class="bg-white p-10 rounded-[3rem] w-full max-w-sm text-center shadow-2xl">
+            <div class="bg-indigo-600 w-20 h-20 rounded-3xl mx-auto mb-6 flex items-center justify-center text-white text-3xl font-black">R</div>
+            <h1 class="text-3xl font-black mb-6 tracking-tighter uppercase">RASOA <span class="text-indigo-600">PRO</span></h1>
+            <input type="password" [(ngModel)]="pin" (keyup.enter)="login()" placeholder="Code PIN" 
+              class="w-full p-5 bg-slate-50 border-2 border-transparent focus:border-indigo-500 rounded-2xl text-center font-black text-2xl outline-none mb-4">
+            <button (click)="login()" class="w-full bg-indigo-600 text-white font-black py-5 rounded-2xl uppercase tracking-widest text-sm shadow-lg active:scale-95 transition-transform">
+              Entrer
+            </button>
+            @if (loginError()) {
+              <p class="text-rose-500 font-bold text-xs mt-4">Code incorrect (rasoa123)</p>
             }
-        };
-        initAuth();
-        const unsubscribe = onAuthStateChanged(auth, setUser);
-        const savedAuth = localStorage.getItem('rasoa_auth_v2');
-        if (savedAuth === 'true') setIsAuthenticated(true);
-        return () => unsubscribe();
-    }, []);
-
-    // Firestore Sync
-    useEffect(() => {
-        if (!user) return;
-
-        const unsubLiv = onSnapshot(
-            query(collection(db, 'artifacts', appId, 'public', 'data', 'livraisons'), orderBy('timestamp', 'desc')), 
-            (snap) => setLivraisons(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
-            (err) => console.error(err)
-        );
-
-        const unsubCli = onSnapshot(
-            query(collection(db, 'artifacts', appId, 'public', 'data', 'clients'), orderBy('createdAt', 'desc')), 
-            (snap) => setClients(snap.docs.map(d => ({ id: d.id, ...d.data() }))),
-            (err) => console.error(err)
-        );
-
-        return () => { unsubLiv(); unsubCli(); };
-    }, [user]);
-
-    const handleLogin = (e) => {
-        e.preventDefault();
-        if (pin === 'rasoa123') {
-            setIsAuthenticated(true);
-            localStorage.setItem('rasoa_auth_v2', 'true');
-        } else {
-            setLoginError(true);
-        }
-    };
-
-    const logout = () => {
-        setIsAuthenticated(false);
-        localStorage.removeItem('rasoa_auth_v2');
-    };
-
-    const deleteItem = async (coll, id) => {
-        try {
-            await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', coll, id));
-        } catch (e) { console.error(e); }
-    };
-
-    const updateStatus = async (id, current) => {
-        const stages = ['En attente', 'En cours', 'Livré'];
-        const next = stages[stages.indexOf(current) + 1] || 'Livré';
-        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', id), { statut: next });
-    };
-
-    const submitVente = async (e) => {
-        e.preventDefault();
-        const formData = new FormData(e.target);
-        const data = Object.fromEntries(formData.entries());
-        try {
-            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'livraisons'), {
-                ...data,
-                montant: Number(data.montant),
-                statut: 'En attente',
-                timestamp: serverTimestamp()
-            });
-            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'clients'), {
-                nom: data.nom, tel: data.tel, lieu: data.lieu, source: data.source, createdAt: serverTimestamp()
-            });
-            e.target.reset();
-            setActiveTab('livraisons');
-        } catch (e) { console.error(e); }
-    };
-
-    const submitNewClient = async (e) => {
-        e.preventDefault();
-        const formData = new FormData(e.target);
-        const data = Object.fromEntries(formData.entries());
-        try {
-            await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'clients'), {
-                ...data, createdAt: serverTimestamp()
-            });
-            setShowClientModal(false);
-        } catch (e) { console.error(e); }
-    };
-
-    if (!isAuthenticated) {
-        return (
-            <div class="min-h-screen bg-slate-900 flex items-center justify-center p-6">
-<div class="bg-white p-10 rounded-[3rem] w-full max-w-sm text-center shadow-2xl">
-  <Logo class="w-20 h-20 rounded-3xl mx-auto mb-6 shadow-xl" />
-  <h1 class="text-3xl font-black mb-6 uppercase tracking-tighter">RASOA <span class="text-indigo-600">PRO</span>
-  </h1>
-  <form onsubmit="handleLogin" class="space-y-4">
-    <input type="password" value={pin} onchange="(e) => setPin(e.target.value)" placeholder="Code PIN" 
-                            class="w-full p-5 bg-slate-50 border-2 border-transparent focus:border-indigo-500 rounded-2xl text-center font-black text-2xl outline-none" />
-    <button class="w-full bg-indigo-600 text-white font-black py-5 rounded-2xl uppercase tracking-widest text-sm shadow-lg">Entrer</button>
-    </form>
-                    {loginError && <p class="mt-4 text-rose-500 font-bold text-xs">Code incorrect (rasoa123)</p>}
-                </div>
-  </div>
-        );
-    }
-
-    return (
-        <div class="min-h-screen bg-[#F8FAFC]">
-  <nav class="bg-white/80 backdrop-blur-md border-b sticky top-0 z-50 h-20 flex items-center justify-between px-6">
-    <div class="flex items-center gap-3 font-black text-xl uppercase tracking-tighter">
-      <Logo class="w-10 h-10 rounded-xl" />
-                    RASOA <span class="text-indigo-600">PRO</span>
-      </div>
-      <button onclick="logout" class="p-3 bg-rose-50 text-rose-500 rounded-xl hover:bg-rose-100">
-        <LogOut size={20} />
-      </button>
-    </nav>
-    <div class="bg-white border-b sticky top-20 z-40">
-      <div class="max-w-6xl mx-auto px-4 flex overflow-x-auto no-scrollbar">
-                    {[
-                        { id: 'vente', icon: <ShoppingCart size={18}/>, label: 'Vente' },
-                        { id: 'livraisons', icon: <Truck size={18}/>, label: 'Livraisons' },
-                        { id: 'clients', icon: <Users size={18}/>, label: 'Clients' },
-                        { id: 'finances', icon: <Wallet size={18}/>, label: 'Finances' }
-                    ].map(tab => (
-                        <button key={tab.id} onclick="() => setActiveTab(tab.id)"
-                            class={`flex-1 min-w-[80px] py-5 flex flex-col items-center gap-1 font-black text-[10px] uppercase transition-all ${activeTab === tab.id ? 'text-indigo-600 border-b-4 border-indigo-600 bg-indigo-50/50' : 'text-slate-400 border-b-4 border-transparent'}`}>
-                            {tab.icon} {tab.label}
-                        </button>
-                    ))}
-                </div>
-      </div>
-      <main class="max-w-6xl mx-auto p-4 md:p-8">
-                {activeTab === 'vente' && (
-                    <div class="max-w-xl mx-auto bg-white p-8 rounded-[3rem] shadow-xl border border-indigo-50 animate-in fade-in slide-in-from-bottom-4">
-        <div class="text-center mb-8">
-          <Logo class="w-16 h-16 rounded-2xl mx-auto mb-4" />
-          <h2 class="text-2xl font-black uppercase">Vente rapide</h2>
           </div>
-          <form onsubmit="submitVente" class="space-y-4">
-            <input name="nom" required placeholder="Nom du client" class="w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none border-2 border-transparent focus:border-indigo-500">
-            <div class="grid grid-cols-2 gap-4">
-              <input name="tel" placeholder="Tél" class="p-4 bg-slate-50 rounded-2xl font-mono outline-none">
-              <input name="lieu" placeholder="Quartier" class="p-4 bg-slate-50 rounded-2xl outline-none">
-            </div>
-            <div class="grid grid-cols-2 gap-4">
-              <div class="flex gap-2 p-2 bg-slate-50 rounded-2xl">
-                <label class="flex-1 cursor-pointer">
-                  <input type="radio" name="source" value="Facebook" class="hidden peer" defaultChecked>
-                  <div class="flex items-center justify-center p-3 rounded-xl peer-checked:bg-white peer-checked:text-blue-600 transition-all shadow-none peer-checked:shadow-sm grayscale peer-checked:grayscale-0">
-                    <Facebook size={18} />
-                  </div>
-                </label>
-                <label class="flex-1 cursor-pointer">
-                  <input type="radio" name="source" value="TikTok" class="hidden peer">
-                  <div class="flex items-center justify-center p-3 rounded-xl peer-checked:bg-white peer-checked:text-rose-500 transition-all shadow-none peer-checked:shadow-sm grayscale peer-checked:grayscale-0">
-                    <Music size={18} />
-                  </div>
-                </label>
-              </div>
-              <input name="montant" type="number" required placeholder="Prix AR" class="p-4 bg-indigo-50 rounded-2xl font-black text-indigo-600 outline-none">
-            </div>
-            <button class="w-full bg-slate-900 text-white py-6 rounded-3xl font-black uppercase tracking-widest shadow-lg hover:bg-indigo-600 transition-all">Enregistrer</button>
-            </form>
-          </div>
-                )}
-
-                {activeTab === 'livraisons' && (
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {livraisons.length === 0 && <div class="col-span-full text-center py-20 text-slate-400 font-bold italic">Aucune livraison en cours...</div>}
-                        {livraisons.map(l => (
-                            <div key={l.id} class="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden hover:shadow-md transition-all">
-          <div class={`py-2 text-[8px] font-black uppercase text-center text-white ${l.statut === 'Livré' ? 'bg-emerald-500' : l.statut === 'En cours' ? 'bg-blue-500' : 'bg-amber-400'}`}>{l.statut}</div>
-            <div class="p-6">
-              <div class="flex justify-between items-start mb-4">
-                <div>
-                  <h3 class="font-black text-lg leading-tight">{l.nom}</h3>
-                    <div class="flex items-center gap-1 text-[9px] font-black uppercase text-slate-400 mt-1">
-                                                {l.source === 'Facebook' ? <Facebook size={10} class="text-blue-600" /> : <Music size={10} class="text-rose-500" />} {l.source}
-                                            </div>
-                    </div>
-                    <button onclick="() => deleteItem('livraisons', l.id)" class="text-slate-200 hover:text-rose-500">
-                      <Trash2 size={16}/>
-                    </button>
-                  </div>
-                  <div class="text-2xl font-black text-indigo-600 mb-2">{l.montant?.toLocaleString()} AR</div>
-                    <div class="text-xs text-slate-400 font-bold flex items-center gap-1 mb-6">
-                      <MapPin size={12}/> {l.lieu}</div>
-                                    {l.statut !== 'Livré' ? (
-                                        <button onclick="() => updateStatus(l.id, l.statut)" class="w-full bg-slate-900 text-white py-4 rounded-xl font-black text-[10px] uppercase tracking-widest hover:bg-indigo-600">Étape Suivante</button>
-                                    ) : (
-                                        <div class="text-center text-emerald-500 py-4 font-black uppercase text-[10px] bg-emerald-50 rounded-xl flex items-center justify-center gap-2">
-                        <CheckCircle2 size={14}/> Livraison Terminée</div>
-                                    )}
-                                </div>
-                        </div>
-                        ))}
-                    </div>
-                )}
-
-                {activeTab === 'clients' && (
-                    <div class="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
-                        <div class="p-6 md:p-8 flex flex-col md:flex-row justify-between items-center gap-4 border-b">
-                          <h2 class="font-black text-xl uppercase">Répertoire Clients</h2>
-                            <button onclick="() => setShowClientModal(true)" class="w-full md:w-auto bg-indigo-600 text-white px-8 py-4 rounded-2xl font-black text-xs uppercase flex items-center justify-center gap-2 shadow-lg shadow-indigo-200 active:scale-95 transition-all">
-                              <UserPlus size={18}/> Ajouter un Client
-                            </button>
-                              </div>
-                              <div class="overflow-x-auto">
-                                <table class="w-full text-left">
-                                  <thead class="bg-slate-50 text-[10px] font-black uppercase text-slate-400">
-                                    <tr>
-                                      <th class="p-6">Client</th>
-                                        <th class="p-6">Source</th>
-                                          <th class="p-6">Contact</th>
-                                            <th class="p-6 text-right">Actions</th>
-                                            </tr>
-                                          </thead>
-                                          <tbody class="divide-y divide-slate-50">
-                                    {clients.map(c => (
-                                        <tr key={c.id} class="hover:bg-slate-50 transition-colors">
-                                            <td class="p-6">
-                                              <div class="font-black">{c.nom}</div>
-                                                <div class="text-[10px] text-slate-400 font-bold uppercase">{c.lieu}</div>
-                                                </td>
-                                                <td class="p-6">
-                                                  <div class={`inline-flex items-center gap-2 px-3 py-1 rounded-full text-[9px] font-black uppercase ${c.source === 'TikTok' ? 'bg-rose-50 text-rose-500' : 'bg-blue-50 text-blue-600'}`}>
-                                                    {c.source === 'TikTok' ? <Music size={12}/> : <Facebook size={12}/>} {c.source}
-                                                </div>
-                                                  </td>
-                                                  <td class="p-6 font-mono font-black text-indigo-600 text-sm">{c.tel}</td>
-                                                    <td class="p-6 text-right">
-                                                      <button onclick="() => deleteItem('clients', c.id)" class="text-slate-200 hover:text-rose-500 p-2">
-                                                        <Trash2 size={18}/>
-                                                      </button>
-                                                    </td>
-                                                  </tr>
-                                    ))}
-                                </tbody>
-                                                </table>
-                                              </div>
-                                            </div>
-                )}
-
-                {activeTab === 'finances' && (
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                            <div class="bg-indigo-600 p-8 rounded-[2.5rem] text-white shadow-xl">
-                                              <div class="text-[10px] font-black uppercase opacity-70">Total Ventes (Livrés)</div>
-                                                <div class="text-4xl font-black mt-2 tracking-tighter">
-                                {livraisons.filter(l => l.statut === 'Livré').reduce((a,c) => a + (c.montant || 0), 0).toLocaleString()} AR
-                            </div>
-                                                </div>
-                                                <div class="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100 flex items-center justify-between">
-                                                  <div>
-                                                    <div class="text-[10px] font-black uppercase text-slate-400">Commandes livrées</div>
-                                                      <div class="text-4xl font-black mt-2 text-slate-900">
-                                    {livraisons.filter(l => l.statut === 'Livré').length}
-                                </div>
-                                                      </div>
-                                                      <div class="bg-emerald-50 text-emerald-500 p-4 rounded-3xl">
-                                                        <CheckCircle2 size={32}/>
-                                                      </div>
-                                                    </div>
-                                                  </div>
-                )}
-            </main>
-
-            
-            {showClientModal && (
-                <div class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[100] flex items-center justify-center p-4 overflow-y-auto">
-                                                  <div class="bg-white rounded-[2.5rem] w-full max-w-md p-8 shadow-2xl my-auto">
-                                                    <div class="flex justify-between items-center mb-6">
-                                                      <h3 class="font-black text-xl uppercase">Fiche Nouveau Client</h3>
-                                                        <button onclick="() => setShowClientModal(false)" class="p-2 bg-slate-50 rounded-xl">
-                                                          <X/>
-                                                        </button>
-                                                      </div>
-                                                      <form onsubmit="submitNewClient" class="space-y-4">
-                                                        <input name="nom" required placeholder="Nom et Prénoms" class="w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none border-2 border-transparent focus:border-indigo-500">
-                                                        <div class="grid grid-cols-2 gap-4">
-                                                          <input name="tel" placeholder="Tél" class="p-4 bg-slate-50 rounded-2xl font-mono outline-none">
-                                                          <input name="lieu" placeholder="Ville / Quartier" class="p-4 bg-slate-50 rounded-2xl outline-none">
-                                                        </div>
-                                                        <div class="p-2 bg-slate-50 rounded-2xl">
-                                                          <div class="text-[9px] font-black uppercase text-slate-400 mb-2 px-2">Origine du client</div>
-                                                            <div class="flex gap-2">
-                                                              <label class="flex-1 cursor-pointer">
-                                                                <input type="radio" name="source" value="Facebook" class="hidden peer" defaultChecked>
-                                                                <div class="flex items-center justify-center p-3 rounded-xl peer-checked:bg-white font-black text-[10px] uppercase transition-all shadow-none peer-checked:shadow-sm">Facebook</div>
-                                                                </label>
-                                                                <label class="flex-1 cursor-pointer">
-                                                                  <input type="radio" name="source" value="TikTok" class="hidden peer">
-                                                                  <div class="flex items-center justify-center p-3 rounded-xl peer-checked:bg-white font-black text-[10px] uppercase transition-all shadow-none peer-checked:shadow-sm">TikTok</div>
-                                                                  </label>
-                                                                </div>
-                                                              </div>
-                                                              <button class="w-full bg-slate-900 text-white py-5 rounded-3xl font-black uppercase tracking-widest shadow-xl active:scale-95 transition-all">Enregistrer le client</button>
-                                                              </form>
-                                                            </div>
-                                                          </div>
-            )}
         </div>
+      }
+
+      <!-- INTERFACE PRINCIPALE -->
+      @if (isAuthenticated()) {
+        <div class="max-w-6xl mx-auto">
+          <!-- Header -->
+          <nav class="h-20 flex items-center justify-between px-6 bg-white/80 backdrop-blur-md sticky top-0 z-50 border-b border-slate-100">
+            <div class="flex items-center gap-3 font-black text-xl uppercase tracking-tighter">
+              <div class="bg-indigo-600 w-10 h-10 rounded-xl flex items-center justify-center text-white text-lg">R</div>
+              RASOA <span class="text-indigo-600">PRO</span>
+            </div>
+            <button (click)="logout()" class="p-3 bg-rose-50 text-rose-500 rounded-xl hover:bg-rose-100 transition-colors">
+              Déconnexion
+            </button>
+          </nav>
+
+          <!-- Navigation -->
+          <div class="bg-white border-b sticky top-20 z-40 overflow-x-auto">
+            <div class="flex px-4">
+              @for (tab of ['Vente', 'Livraisons', 'Clients', 'Finances']; track tab) {
+                <button (click)="currentTab.set(tab)" 
+                  [class.active-tab]="currentTab() === tab"
+                  class="flex-1 min-w-[100px] py-5 font-black text-[10px] uppercase tracking-widest text-slate-400 border-b-4 border-transparent transition-all">
+                  {{ tab }}
+                </button>
+              }
+            </div>
+          </div>
+
+          <!-- Contenu -->
+          <main class="p-4 md:p-8">
+            
+            <!-- ONGLET VENTE -->
+            @if (currentTab() === 'Vente') {
+              <div class="max-w-xl mx-auto bg-white p-8 rounded-[3rem] shadow-xl border border-indigo-50">
+                <h2 class="text-2xl font-black uppercase text-center mb-8">Nouvelle Vente</h2>
+                <div class="space-y-4">
+                  <input [(ngModel)]="form.nom" placeholder="Nom du client" class="w-full p-4 bg-slate-50 rounded-2xl font-bold border-2 border-transparent focus:border-indigo-500 outline-none">
+                  <div class="grid grid-cols-2 gap-4">
+                    <input [(ngModel)]="form.tel" placeholder="Téléphone" class="p-4 bg-slate-50 rounded-2xl outline-none font-mono">
+                    <input [(ngModel)]="form.lieu" placeholder="Quartier / Lieu" class="p-4 bg-slate-50 rounded-2xl outline-none">
+                  </div>
+                  <div class="grid grid-cols-2 gap-4">
+                    <select [(ngModel)]="form.source" class="p-4 bg-slate-50 rounded-2xl font-bold outline-none">
+                      <option value="Facebook">Facebook</option>
+                      <option value="TikTok">TikTok</option>
+                    </select>
+                    <input [(ngModel)]="form.montant" type="number" placeholder="Prix AR" class="p-4 bg-indigo-50 rounded-2xl font-black text-indigo-600 outline-none">
+                  </div>
+                  <button (click)="saveVente()" class="w-full bg-slate-900 text-white py-6 rounded-3xl font-black uppercase tracking-widest shadow-lg hover:bg-indigo-600 transition-all">
+                    Enregistrer la commande
+                  </button>
+                </div>
+              </div>
+            }
+
+            <!-- ONGLET LIVRAISONS -->
+            @if (currentTab() === 'Livraisons') {
+              <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                @for (l of livraisons(); track l.id) {
+                  <div class="bg-white rounded-[2rem] shadow-sm border border-slate-100 overflow-hidden group hover:shadow-md transition-all">
+                    <div [class]="'py-2 text-[8px] font-black uppercase text-center text-white ' + 
+                      (l.statut === 'Livré' ? 'bg-emerald-500' : l.statut === 'En cours' ? 'bg-sky-500' : 'bg-amber-400')">
+                      {{ l.statut }}
+                    </div>
+                    <div class="p-6">
+                      <h3 class="font-black text-lg">{{ l.nom }}</h3>
+                      <div class="text-2xl font-black text-indigo-600 my-2">{{ l.montant | number }} AR</div>
+                      <p class="text-xs text-slate-400 font-bold mb-6 flex items-center gap-1">
+                        📍 {{ l.lieu }}
+                      </p>
+                      @if (l.statut !== 'Livré') {
+                        <button (click)="nextStatus(l)" class="w-full bg-slate-900 text-white py-4 rounded-xl font-black text-[10px] uppercase tracking-tighter hover:bg-indigo-600">
+                          Passer à {{ l.statut === 'En attente' ? 'En cours' : 'Livré' }}
+                        </button>
+                      } @else {
+                        <div class="text-center text-emerald-500 font-black text-[10px] uppercase py-4 border-2 border-emerald-50 border-dashed rounded-xl">
+                          Terminé
+                        </div>
+                      }
+                    </div>
+                  </div>
+                } @empty {
+                  <div class="col-span-full text-center py-20 text-slate-400 font-bold italic">Aucune livraison trouvée</div>
+                }
+              </div>
+            }
+
+            <!-- ONGLET CLIENTS -->
+            @if (currentTab() === 'Clients') {
+              <div class="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
+                <div class="overflow-x-auto">
+                  <table class="w-full text-left">
+                    <thead class="bg-slate-50 text-[10px] font-black uppercase text-slate-400">
+                      <tr>
+                        <th class="p-6">Client / Lieu</th>
+                        <th class="p-6">Source</th>
+                        <th class="p-6">Contact</th>
+                        <th class="p-6 text-right">Actions</th>
+                      </tr>
+                    </thead>
+                    <tbody class="divide-y divide-slate-50">
+                      @for (c of clients(); track c.id) {
+                        <tr class="hover:bg-slate-50/50">
+                          <td class="p-6">
+                            <div class="font-black">{{ c.nom }}</div>
+                            <div class="text-[9px] uppercase font-bold text-slate-400">{{ c.lieu }}</div>
+                          </td>
+                          <td class="p-6">
+                            <span class="px-3 py-1 bg-indigo-50 text-indigo-600 rounded-full text-[9px] font-black uppercase">
+                              {{ c.source }}
+                            </span>
+                          </td>
+                          <td class="p-6 font-mono text-xs">{{ c.tel }}</td>
+                          <td class="p-6 text-right">
+                            <button (click)="deleteClient(c.id)" class="text-rose-400 hover:text-rose-600 font-bold text-xs uppercase">Suppr.</button>
+                          </td>
+                        </tr>
+                      }
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            }
+
+            <!-- ONGLET FINANCES -->
+            @if (currentTab() === 'Finances') {
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div class="bg-indigo-600 p-10 rounded-[3rem] text-white shadow-xl relative overflow-hidden">
+                  <div class="relative z-10">
+                    <div class="text-[10px] font-black uppercase opacity-60 tracking-widest mb-2">Chiffre d'Affaire (Livré)</div>
+                    <div class="text-5xl font-black tracking-tighter">{{ stats().totalAmount | number }} AR</div>
+                  </div>
+                  <div class="absolute -right-10 -bottom-10 w-40 h-40 bg-white/10 rounded-full"></div>
+                </div>
+                <div class="bg-white p-10 rounded-[3rem] shadow-xl border border-slate-100">
+                  <div class="text-[10px] font-black uppercase text-slate-400 tracking-widest mb-2">Commandes Réussies</div>
+                  <div class="text-5xl font-black text-slate-900 tracking-tighter">{{ stats().totalCount }}</div>
+                </div>
+              </div>
+            }
+
+          </main>
+        </div>
+      }
+    </div>
+  `,
+  styles: [`
+    .active-tab {
+      color: #4f46e5;
+      border-bottom-color: #4f46e5;
+      background-color: rgba(79, 70, 229, 0.03);
+    }
+  `]
+})
+export class App implements OnInit {
+  isAuthenticated = signal(false);
+  currentTab = signal('Vente');
+  pin = '';
+  loginError = signal(false);
+  
+  livraisons = signal<any[]>([]);
+  clients = signal<any[]>([]);
+  
+  form = {
+    nom: '',
+    tel: '',
+    lieu: '',
+    source: 'Facebook',
+    montant: null as number | null
+  };
+
+  stats = computed(() => {
+    const delivered = this.livraisons().filter(l => l.statut === 'Livré');
+    return {
+      totalAmount: delivered.reduce((sum, l) => sum + (l.montant || 0), 0),
+      totalCount: delivered.length
+    };
+  });
+
+  private db: any;
+  private auth: any;
+  private appId = (window as any).__app_id || 'rasoa-pro-angular';
+
+  ngOnInit() {
+    const firebaseConfig = JSON.parse((window as any).__firebase_config);
+    const app = initializeApp(firebaseConfig);
+    this.db = getFirestore(app);
+    this.auth = getAuth(app);
+
+    // Initialisation automatique si session active
+    if (localStorage.getItem('rasoa_session') === 'active') {
+      this.login();
+    }
+  }
+
+  async login() {
+    if (this.pin === 'rasoa123' || localStorage.getItem('rasoa_session') === 'active') {
+      try {
+        const token = (window as any).__initial_auth_token;
+        if (token) {
+          await signInWithCustomToken(this.auth, token);
+        } else {
+          await signInAnonymously(this.auth);
+        }
+        
+        this.isAuthenticated.set(true);
+        localStorage.setItem('rasoa_session', 'active');
+        this.syncData();
+      } catch (e) {
+        console.error("Erreur d'authentification:", e);
+        this.loginError.set(true);
+      }
+    } else {
+      this.loginError.set(true);
+    }
+  }
+
+  logout() {
+    localStorage.removeItem('rasoa_session');
+    location.reload();
+  }
+
+  syncData() {
+    if (!this.auth.currentUser) return;
+
+    // Écoute des livraisons
+    onSnapshot(
+      query(collection(this.db, 'artifacts', this.appId, 'public', 'data', 'livraisons'), orderBy('timestamp', 'desc')), 
+      (snap) => {
+        this.livraisons.set(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      },
+      (error) => console.error("Erreur Firestore Livraisons:", error)
     );
+
+    // Écoute des clients
+    onSnapshot(
+      query(collection(this.db, 'artifacts', this.appId, 'public', 'data', 'clients'), orderBy('createdAt', 'desc')), 
+      (snap) => {
+        this.clients.set(snap.docs.map(d => ({ id: d.id, ...d.data() })));
+      },
+      (error) => console.error("Erreur Firestore Clients:", error)
+    );
+  }
+
+  async saveVente() {
+    if (!this.form.nom || !this.form.montant || !this.auth.currentUser) return;
+
+    const entry = {
+      ...this.form,
+      statut: 'En attente',
+      timestamp: serverTimestamp()
+    };
+
+    const clientEntry = {
+      nom: this.form.nom,
+      tel: this.form.tel,
+      lieu: this.form.lieu,
+      source: this.form.source,
+      createdAt: serverTimestamp()
+    };
+
+    try {
+      await addDoc(collection(this.db, 'artifacts', this.appId, 'public', 'data', 'livraisons'), entry);
+      await addDoc(collection(this.db, 'artifacts', this.appId, 'public', 'data', 'clients'), clientEntry);
+
+      // Réinitialisation du formulaire
+      this.form = { nom: '', tel: '', lieu: '', source: 'Facebook', montant: null };
+      this.currentTab.set('Livraisons');
+    } catch (e) {
+      console.error("Erreur d'enregistrement:", e);
+    }
+  }
+
+  async nextStatus(l: any) {
+    if (!this.auth.currentUser) return;
+    const next = l.statut === 'En attente' ? 'En cours' : 'Livré';
+    await updateDoc(doc(this.db, 'artifacts', this.appId, 'public', 'data', 'livraisons', l.id), { statut: next });
+  }
+
+  async deleteClient(id: string) {
+    if (!this.auth.currentUser) return;
+    if (confirm('Supprimer ce client ?')) {
+      await deleteDoc(doc(this.db, 'artifacts', this.appId, 'public', 'data', 'clients', id));
+    }
+  }
 }
