@@ -3,89 +3,110 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rasoa Pro - Gestion Totale</title>
+    <title>Rasoa Pro - V1</title>
     <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
         body { font-family: 'Plus Jakarta Sans', sans-serif; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .animate-fade-in { animation: fadeIn 0.3s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
-        .tab-active { border-color: #4f46e5; color: #4f46e5; background-color: #f5f3ff; }
+        .tab-active { color: #4f46e5; background-color: #f5f3ff; }
+        .glass-card { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(10px); }
     </style>
 </head>
-<body class="bg-[#F8FAFC]">
+<body class="bg-[#F8FAFC] text-slate-900">
 
     <div id="app">
         <!-- Écran de Chargement -->
         <div id="loader" class="fixed inset-0 bg-white flex flex-col items-center justify-center z-[200]">
             <div class="animate-spin rounded-full h-12 w-12 border-b-4 border-indigo-600 mb-4"></div>
-            <p id="loader-text" class="font-black text-indigo-600 uppercase tracking-widest text-[10px]">Connexion à Firebase...</p>
-            <div id="debug-log" class="mt-4 text-[8px] text-slate-300 font-mono max-w-xs text-center"></div>
+            <p id="loader-text" class="font-black text-indigo-600 uppercase tracking-widest text-[10px]">Initialisation Sécurisée...</p>
+            <div id="debug-log" class="mt-4 text-[10px] text-slate-400 font-mono max-w-sm text-center px-6 overflow-y-auto max-h-32"></div>
         </div>
 
         <!-- Authentification -->
         <div id="login-screen" class="hidden fixed inset-0 bg-[#0f172a] flex items-center justify-center p-4 z-[100]">
-            <div class="bg-white p-8 rounded-[2.5rem] w-full max-w-sm text-center shadow-2xl">
-                <div class="bg-indigo-50 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-8 text-indigo-600 rotate-3 text-3xl">🔒</div>
-                <h1 class="text-3xl font-black mb-2 uppercase tracking-tighter text-slate-900">Rasoa Pro</h1>
-                <p class="text-slate-400 text-xs mb-8 font-bold uppercase tracking-widest">Code requis</p>
+            <div class="bg-white p-10 rounded-[3rem] w-full max-w-sm text-center shadow-2xl">
+                <div class="bg-indigo-50 w-24 h-24 rounded-3xl flex items-center justify-center mx-auto mb-8 text-indigo-600 rotate-3 text-4xl shadow-inner">
+                    <i data-lucide="lock"></i>
+                </div>
+                <h1 class="text-3xl font-black mb-2 uppercase tracking-tighter">Rasoa <span class="text-indigo-600">Pro</span></h1>
+                <p class="text-slate-400 text-[10px] mb-8 font-black uppercase tracking-widest">Accès Protégé V1</p>
                 <form id="loginForm" class="space-y-4">
-                    <input type="password" id="passwordInput" placeholder="••••" 
-                        class="w-full p-5 bg-slate-50 border-2 border-transparent focus:border-indigo-500 rounded-2xl text-center font-black text-xl outline-none transition-all">
-                    <button type="submit" class="w-full bg-indigo-600 text-white font-black py-5 rounded-2xl hover:bg-indigo-700 transition-all shadow-xl uppercase tracking-widest">Accéder</button>
+                    <input type="password" id="passwordInput" placeholder="CODE PIN" 
+                        class="w-full p-6 bg-slate-50 border-2 border-transparent focus:border-indigo-500 rounded-2xl text-center font-black text-2xl outline-none transition-all tracking-[0.5em]">
+                    <button type="submit" class="w-full bg-indigo-600 text-white font-black py-5 rounded-2xl hover:bg-indigo-700 transition-all shadow-xl uppercase tracking-widest text-sm">Entrer</button>
                 </form>
-                <p id="loginError" class="hidden mt-6 p-3 bg-rose-50 text-rose-600 text-[10px] font-black rounded-xl uppercase">Accès refusé</p>
+                <p id="loginError" class="hidden mt-6 p-3 bg-rose-50 text-rose-600 text-[10px] font-black rounded-xl uppercase">Code incorrect</p>
             </div>
         </div>
 
         <!-- Interface Principale -->
         <div id="main-interface" class="hidden min-h-screen flex flex-col">
             <nav class="bg-white/80 backdrop-blur-md border-b px-6 h-20 flex items-center justify-between sticky top-0 z-50">
-                <div class="flex items-center gap-3 font-black text-2xl tracking-tighter uppercase text-slate-900">
-                    <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg">⚡</div>
+                <div class="flex items-center gap-3 font-black text-2xl tracking-tighter uppercase">
+                    <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg">
+                        <i data-lucide="zap" size="20"></i>
+                    </div>
                     RASOA <span class="text-indigo-600">PRO</span>
                 </div>
-                <button id="logoutBtn" class="text-slate-400 font-bold text-xs flex items-center gap-2 px-5 py-2.5 rounded-xl hover:bg-rose-50 hover:text-rose-500 transition-all uppercase tracking-widest">Quitter</button>
+                <button id="logoutBtn" class="bg-rose-50 text-rose-500 p-3 rounded-xl hover:bg-rose-100 transition-all">
+                    <i data-lucide="log-out" size="20"></i>
+                </button>
             </nav>
 
             <div class="bg-white border-b overflow-x-auto sticky top-20 z-40 no-scrollbar">
-                <div class="max-w-5xl mx-auto px-4 flex" id="tabs-container">
-                    <button onclick="appState.setTab('vente')" id="tab-vente" class="px-8 py-5 flex items-center gap-2 border-b-4 font-black text-sm whitespace-nowrap transition-all border-transparent text-slate-400">🛒 Vente</button>
-                    <button onclick="appState.setTab('livraisons')" id="tab-livraisons" class="px-8 py-5 flex items-center gap-2 border-b-4 font-black text-sm whitespace-nowrap transition-all border-transparent text-slate-400">🚚 Livraisons</button>
-                    <button onclick="appState.setTab('finances')" id="tab-finances" class="px-8 py-5 flex items-center gap-2 border-b-4 font-black text-sm whitespace-nowrap transition-all border-transparent text-slate-400">💰 Finances</button>
-                    <button onclick="appState.setTab('clients')" id="tab-clients" class="px-8 py-5 flex items-center gap-2 border-b-4 font-black text-sm whitespace-nowrap transition-all border-transparent text-slate-400">👥 Clients</button>
+                <div class="max-w-6xl mx-auto px-4 flex">
+                    <button onclick="appState.setTab('vente')" id="tab-vente" class="flex-1 py-5 flex flex-col items-center gap-1 font-black text-[10px] uppercase transition-all text-slate-400 border-b-4 border-transparent">
+                        <i data-lucide="shopping-cart" size="18"></i> Vente
+                    </button>
+                    <button onclick="appState.setTab('livraisons')" id="tab-livraisons" class="flex-1 py-5 flex flex-col items-center gap-1 font-black text-[10px] uppercase transition-all text-slate-400 border-b-4 border-transparent">
+                        <i data-lucide="truck" size="18"></i> Livraisons
+                    </button>
+                    <button onclick="appState.setTab('finances')" id="tab-finances" class="flex-1 py-5 flex flex-col items-center gap-1 font-black text-[10px] uppercase transition-all text-slate-400 border-b-4 border-transparent">
+                        <i data-lucide="wallet" size="18"></i> Finances
+                    </button>
+                    <button onclick="appState.setTab('clients')" id="tab-clients" class="flex-1 py-5 flex flex-col items-center gap-1 font-black text-[10px] uppercase transition-all text-slate-400 border-b-4 border-transparent">
+                        <i data-lucide="users" size="18"></i> Clients
+                    </button>
                 </div>
             </div>
 
-            <main class="max-w-5xl mx-auto p-4 md:p-8 flex-1 w-full" id="content-area">
-                <!-- Injecté -->
+            <main class="max-w-6xl mx-auto p-4 md:p-8 flex-1 w-full" id="content-area">
+                <div class="flex items-center justify-center py-20 text-slate-400 font-bold animate-pulse">
+                    Chargement des données...
+                </div>
             </main>
         </div>
     </div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, serverTimestamp, query } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
 
+        // CONFIGURATION
         const firebaseConfig = JSON.parse(__firebase_config);
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
         const db = getFirestore(app);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
-        // Helper pour le débug visible
-        const logDebug = (msg) => {
+        // CHEMIN STRICT (Artifact > Rasoa pro V1)
+        const rootDocPath = ['Artifact', 'Rasoa pro V1'];
+
+        const logDebug = (msg, isError = false) => {
             const el = document.getElementById('debug-log');
-            if (el) el.innerText += "\n" + msg;
-            console.log("[Debug]", msg);
+            const time = new Date().toLocaleTimeString();
+            if (el) el.innerHTML += `<div class="${isError ? 'text-rose-500' : 'text-slate-400'}">[${time}] ${msg}</div>`;
+            console.log(`[Firebase] ${msg}`);
         };
 
         window.appState = {
-            user: null,
             activeTab: 'vente',
             data: { livraisons: [], clients: [], versements: [], depenses: [] },
+            isInitialized: false,
 
             setTab(tab) {
                 this.activeTab = tab;
@@ -93,32 +114,38 @@
             },
 
             async deleteItem(colName, id) {
-                if(confirm('Supprimer définitivement ?')) {
-                    try {
-                        await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', colName, id));
-                    } catch(e) { logDebug("Erreur delete " + colName); }
-                }
+                if(!confirm('Confirmer la suppression ?')) return;
+                try {
+                    await deleteDoc(doc(db, ...rootDocPath, colName, id));
+                } catch(e) { logDebug("Erreur suppression: " + e.message, true); }
             },
 
             async updateStatut(id, current) {
-                const map = { 'Préparation': 'Livraison', 'Livraison': 'Livré' };
-                if (map[current]) {
-                    try {
-                        await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', id), { statut: map[current] });
-                    } catch(e) { logDebug("Erreur update statut"); }
-                }
+                const next = current === 'Préparation' ? 'Livraison' : 'Livré';
+                try {
+                    await updateDoc(doc(db, ...rootDocPath, 'livraisons', id), { statut: next });
+                } catch(e) { logDebug("Erreur statut: " + e.message, true); }
             },
 
             render() {
-                const elTabs = ['vente', 'livraisons', 'finances', 'clients'];
-                elTabs.forEach(t => {
+                const tabs = ['vente', 'livraisons', 'finances', 'clients'];
+                tabs.forEach(t => {
                     const el = document.getElementById(`tab-${t}`);
-                    if (el) t === this.activeTab ? el.classList.add('tab-active') : el.classList.remove('tab-active');
+                    if (el) {
+                        if (t === this.activeTab) {
+                            el.classList.add('tab-active', 'border-indigo-600');
+                            el.classList.remove('text-slate-400');
+                        } else {
+                            el.classList.remove('tab-active', 'border-indigo-600');
+                            el.classList.add('text-slate-400');
+                        }
+                    }
                 });
 
                 const container = document.getElementById('content-area');
                 if (container) {
                     container.innerHTML = `<div class="animate-fade-in">${this.getTemplate()}</div>`;
+                    lucide.createIcons();
                     this.bindEvents();
                 }
             },
@@ -135,117 +162,142 @@
 
             templateVente() {
                 return `
-                    <div class="max-w-xl mx-auto bg-white rounded-[3rem] p-8 md:p-10 shadow-xl border border-white space-y-6">
+                    <div class="max-w-xl mx-auto bg-white rounded-[3rem] p-8 shadow-xl border border-indigo-50 space-y-8">
                         <div class="text-center">
-                            <h2 class="text-xl font-black uppercase text-slate-900 tracking-tight">Nouvelle Vente</h2>
-                            <p class="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-1">Saisie rapide</p>
-                        </div>
-                        <div class="relative">
-                            <input type="text" id="clientSearch" placeholder="Chercher un client..." class="w-full p-4 pl-12 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 ring-indigo-500/20 transition-all font-medium text-sm">
-                            <div id="searchDropdown" class="hidden absolute z-10 w-full mt-2 bg-white border rounded-2xl shadow-xl max-h-48 overflow-y-auto no-scrollbar"></div>
+                            <h2 class="text-2xl font-black text-slate-900 tracking-tight uppercase">Nouvelle Vente</h2>
+                            <p class="text-slate-400 text-[10px] font-black uppercase tracking-[0.2em] mt-2">Enregistrement en temps réel</p>
                         </div>
                         <form id="venteForm" class="space-y-4">
-                            <div class="grid grid-cols-2 gap-4">
-                                <input name="nom" required placeholder="Nom" class="p-4 bg-slate-50 rounded-xl font-bold border-none outline-none focus:ring-2 ring-indigo-500/20 text-sm">
-                                <input name="tel" placeholder="Tél" class="p-4 bg-slate-50 rounded-xl font-mono font-bold border-none outline-none focus:ring-2 ring-indigo-500/20 text-sm">
-                            </div>
-                            <input name="lieu" placeholder="Lieu de livraison" class="w-full p-4 bg-slate-50 rounded-xl border-none outline-none focus:ring-2 ring-indigo-500/20 text-sm">
-                            <div class="grid grid-cols-2 gap-4">
-                                <div class="flex bg-slate-50 rounded-xl p-1 gap-1">
-                                    <label class="flex-1 cursor-pointer"><input type="radio" name="source" value="Facebook" checked class="hidden peer"><div class="py-3 rounded-lg text-center peer-checked:bg-white peer-checked:text-indigo-600 text-slate-400 font-black text-[9px] uppercase transition-all">FB</div></label>
-                                    <label class="flex-1 cursor-pointer"><input type="radio" name="source" value="TikTok" class="hidden peer"><div class="py-3 rounded-lg text-center peer-checked:bg-white peer-checked:text-rose-500 text-slate-400 font-black text-[9px] uppercase transition-all">TK</div></label>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <div class="space-y-1">
+                                    <label class="text-[9px] font-black text-slate-400 uppercase ml-2">Client</label>
+                                    <input name="nom" required placeholder="Nom" class="w-full p-4 bg-slate-50 rounded-2xl font-bold border-none outline-none focus:ring-2 ring-indigo-500/20">
                                 </div>
-                                <select name="type" class="p-4 bg-slate-50 rounded-xl font-black border-none outline-none text-xs">
-                                    <option value="Produit">📦 Produit</option>
-                                    <option value="Colis">🎁 Colis</option>
-                                </select>
+                                <div class="space-y-1">
+                                    <label class="text-[9px] font-black text-slate-400 uppercase ml-2">Contact</label>
+                                    <input name="tel" placeholder="034..." class="w-full p-4 bg-slate-50 rounded-2xl font-mono font-bold border-none outline-none focus:ring-2 ring-indigo-500/20">
+                                </div>
                             </div>
-                            <div class="relative">
-                                <input name="montant" type="number" required placeholder="Prix" class="w-full p-5 bg-indigo-50 rounded-2xl font-black text-2xl text-indigo-600 outline-none">
-                                <span class="absolute right-6 top-1/2 -translate-y-1/2 font-black text-indigo-300 text-xs">AR</span>
+                            <div class="space-y-1">
+                                <label class="text-[9px] font-black text-slate-400 uppercase ml-2">Localisation</label>
+                                <input name="lieu" placeholder="Quartier / Ville" class="w-full p-4 bg-slate-50 rounded-2xl font-bold border-none outline-none focus:ring-2 ring-indigo-500/20">
                             </div>
-                            <button type="submit" class="w-full bg-indigo-600 text-white py-5 rounded-2xl font-black uppercase tracking-widest shadow-lg hover:bg-indigo-700 transition-all">Valider</button>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div class="space-y-1">
+                                    <label class="text-[9px] font-black text-slate-400 uppercase ml-2">Source</label>
+                                    <select name="source" class="w-full p-4 bg-slate-50 rounded-2xl font-black border-none outline-none appearance-none">
+                                        <option value="Facebook">🔵 Facebook</option>
+                                        <option value="TikTok">⚫ TikTok</option>
+                                        <option value="Direct">🏢 Direct</option>
+                                    </select>
+                                </div>
+                                <div class="space-y-1">
+                                    <label class="text-[9px] font-black text-slate-400 uppercase ml-2">Produit</label>
+                                    <select name="type" class="w-full p-4 bg-slate-50 rounded-2xl font-black border-none outline-none appearance-none">
+                                        <option value="Produit">📦 Produit Standard</option>
+                                        <option value="Colis">🎁 Pack Colis</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="relative group">
+                                <label class="text-[9px] font-black text-slate-400 uppercase ml-2 mb-1 block">Prix de vente</label>
+                                <input name="montant" type="number" required placeholder="0" class="w-full p-6 bg-indigo-50 rounded-3xl font-black text-4xl text-indigo-600 outline-none border-2 border-transparent focus:border-indigo-200 transition-all">
+                                <span class="absolute right-8 bottom-6 font-black text-indigo-300">AR</span>
+                            </div>
+                            <button type="submit" class="w-full bg-slate-900 text-white py-6 rounded-3xl font-black uppercase tracking-widest shadow-2xl hover:bg-indigo-600 transition-all flex items-center justify-center gap-3">
+                                <i data-lucide="check-circle"></i> Valider
+                            </button>
                         </form>
                     </div>`;
             },
 
             templateLivraisons() {
                 const list = [...this.data.livraisons].sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
-                return list.length === 0 ? '<div class="text-center py-20 text-slate-300 font-bold">Aucune donnée trouvée</div>' : `
-                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                return `
+                    <div class="flex justify-between items-center mb-8">
+                        <h2 class="text-xl font-black uppercase tracking-tight">Commandes (${list.length})</h2>
+                    </div>
+                    ${list.length === 0 ? '<div class="text-center py-20 text-slate-300 font-black italic">Aucune donnée trouvée</div>' : `
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         ${list.map(l => `
-                            <div class="bg-white rounded-3xl shadow-sm border border-slate-100 overflow-hidden flex flex-col hover:shadow-md transition-all">
-                                <div class="py-2 text-[9px] font-black uppercase text-center tracking-widest text-white ${l.statut === 'Livré' ? 'bg-emerald-500' : l.statut === 'Livraison' ? 'bg-blue-500' : 'bg-amber-400'}">
-                                    ${l.statut}
+                            <div class="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden flex flex-col group hover:shadow-xl transition-all duration-300">
+                                <div class="py-2.5 text-[9px] font-black uppercase text-center tracking-[0.3em] text-white ${l.statut === 'Livré' ? 'bg-emerald-500' : l.statut === 'Livraison' ? 'bg-blue-500' : 'bg-amber-400'}">
+                                    ${l.statut || 'En attente'}
                                 </div>
-                                <div class="p-6 space-y-3">
+                                <div class="p-8 space-y-4">
                                     <div class="flex justify-between items-start">
                                         <div>
-                                            <h3 class="font-black text-lg text-slate-900 leading-tight">${l.nom || 'Inconnu'}</h3>
-                                            <div class="text-[9px] font-bold text-slate-300 uppercase">${l.date || 'Date inconnue'}</div>
+                                            <h3 class="font-black text-xl text-slate-900 mb-1">${l.nom || 'Sans nom'}</h3>
+                                            <div class="flex items-center gap-2 text-[9px] font-bold text-slate-300 uppercase">
+                                                <i data-lucide="calendar" size="10"></i> ${l.date || '---'}
+                                            </div>
                                         </div>
-                                        <button onclick="appState.deleteItem('livraisons', '${l.id}')" class="text-slate-100 hover:text-rose-500 text-xs">✕</button>
+                                        <button onclick="appState.deleteItem('livraisons', '${l.id}')" class="text-slate-100 hover:text-rose-500 p-2 transition-colors">
+                                            <i data-lucide="trash-2" size="16"></i>
+                                        </button>
                                     </div>
-                                    <div class="text-xs text-slate-500 bg-slate-50 p-3 rounded-xl italic">📍 ${l.lieu || '-'}</div>
-                                    <div class="pt-3 border-t flex justify-between items-center">
-                                        <div class="font-black text-xl">${(l.montant || 0).toLocaleString()} <span class="text-[10px] text-slate-400">AR</span></div>
-                                        ${l.statut !== 'Livré' ? `<button onclick="appState.updateStatut('${l.id}', '${l.statut}')" class="bg-slate-900 text-white w-10 h-10 rounded-xl font-black hover:bg-indigo-600 flex items-center justify-center">➔</button>` : '✅'}
+                                    <div class="flex items-center gap-3 p-4 bg-slate-50 rounded-2xl text-xs font-bold text-slate-500">
+                                        <i data-lucide="map-pin" class="text-indigo-500" size="14"></i>
+                                        ${l.lieu || 'Non spécifié'}
+                                    </div>
+                                    <div class="pt-4 border-t border-dashed flex justify-between items-end">
+                                        <div>
+                                            <div class="text-[9px] font-black text-slate-300 uppercase mb-1">Montant</div>
+                                            <div class="font-black text-2xl text-slate-900">${(l.montant || 0).toLocaleString()} <span class="text-xs text-slate-300">AR</span></div>
+                                        </div>
+                                        ${l.statut !== 'Livré' ? `
+                                            <button onclick="appState.updateStatut('${l.id}', '${l.statut}')" class="bg-indigo-600 text-white w-14 h-14 rounded-2xl shadow-lg shadow-indigo-200 flex items-center justify-center hover:scale-105 active:scale-95 transition-all">
+                                                <i data-lucide="arrow-right"></i>
+                                            </button>
+                                        ` : `<div class="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center text-emerald-500"><i data-lucide="check-check"></i></div>`}
                                     </div>
                                 </div>
                             </div>
                         `).join('')}
-                    </div>`;
+                    </div>`}`;
             },
 
             templateFinances() {
-                const totalLivre = this.data.livraisons.filter(l => l.statut === 'Livré').reduce((a,c) => a + (c.montant || 0), 0);
-                const totalVer = this.data.versements.reduce((a,c) => a + (c.montant || 0), 0);
-                const totalDep = this.data.depenses.reduce((a,c) => a + (c.montant || 0), 0);
+                const totalLivre = this.data.livraisons.filter(l => l.statut === 'Livré').reduce((a,c) => a + (Number(c.montant) || 0), 0);
+                const totalVer = this.data.versements.reduce((a,c) => a + (Number(c.montant) || 0), 0);
+                const totalDep = this.data.depenses.reduce((a,c) => a + (Number(c.montant) || 0), 0);
                 const solde = totalVer - totalDep;
 
                 return `
-                    <div class="space-y-6">
-                        <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
-                            <div class="bg-white p-6 rounded-3xl border border-slate-100">
-                                <div class="text-[9px] font-black uppercase text-slate-400 mb-1">Potentiel (Livré)</div>
-                                <div class="text-lg font-black">${totalLivre.toLocaleString()} Ar</div>
-                            </div>
-                            <div class="bg-emerald-500 p-6 rounded-3xl text-white shadow-lg">
-                                <div class="text-[9px] font-black uppercase opacity-70 mb-1">En Caisse</div>
-                                <div class="text-lg font-black">${totalVer.toLocaleString()} Ar</div>
-                            </div>
-                            <div class="bg-white p-6 rounded-3xl border border-slate-100">
-                                <div class="text-[9px] font-black uppercase text-rose-500 mb-1">Dépenses</div>
-                                <div class="text-lg font-black text-rose-600">${totalDep.toLocaleString()} Ar</div>
-                            </div>
-                            <div class="p-6 rounded-3xl text-white shadow-xl ${solde >= 0 ? 'bg-indigo-600' : 'bg-rose-600'}">
-                                <div class="text-[9px] font-black uppercase opacity-70 mb-1">Reste Net</div>
-                                <div class="text-lg font-black">${solde.toLocaleString()} Ar</div>
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+                        <div class="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm">
+                            <span class="text-[10px] font-black uppercase text-slate-400 block mb-2">Potentiel Livré</span>
+                            <div class="text-2xl font-black">${totalLivre.toLocaleString()} AR</div>
+                        </div>
+                        <div class="bg-emerald-500 p-6 rounded-[2rem] text-white shadow-xl">
+                            <span class="text-[10px] font-black uppercase opacity-70 block mb-2">Caisse Actuelle</span>
+                            <div class="text-2xl font-black">${totalVer.toLocaleString()} AR</div>
+                        </div>
+                        <div class="bg-rose-500 p-6 rounded-[2rem] text-white shadow-xl">
+                            <span class="text-[10px] font-black uppercase opacity-70 block mb-2">Dépenses Total</span>
+                            <div class="text-2xl font-black">${totalDep.toLocaleString()} AR</div>
+                        </div>
+                        <div class="bg-slate-900 p-6 rounded-[2rem] text-white shadow-xl">
+                            <span class="text-[10px] font-black uppercase opacity-70 block mb-2">Solde Net</span>
+                            <div class="text-2xl font-black">${solde.toLocaleString()} AR</div>
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                        <div class="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm">
+                            <h3 class="font-black text-xs uppercase mb-6 text-emerald-600">Nouveau Versement</h3>
+                            <div class="relative">
+                                <input id="vMnt" type="number" placeholder="Montant AR" class="w-full p-5 bg-slate-50 rounded-2xl font-black text-xl outline-none">
+                                <button id="addVersementBtn" class="absolute right-2 top-2 bottom-2 bg-emerald-600 text-white px-8 rounded-xl font-black uppercase text-[10px]">OK</button>
                             </div>
                         </div>
-
-                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            <div class="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100 space-y-4">
-                                <h3 class="font-black uppercase text-emerald-600 text-[10px] tracking-widest">Encaisser Versement</h3>
-                                <div class="flex gap-2">
-                                    <input id="vMnt" type="number" placeholder="Somme..." class="flex-1 p-4 bg-slate-50 rounded-xl font-black outline-none border-none text-sm">
-                                    <button id="addVersementBtn" class="bg-emerald-600 text-white px-6 rounded-xl font-black text-sm">OK</button>
-                                </div>
-                                <div class="space-y-2 max-h-40 overflow-y-auto no-scrollbar">
-                                    ${this.data.versements.map(v => `<div class="p-3 bg-slate-50 rounded-xl flex justify-between text-xs">
-                                        <span class="font-bold text-slate-400">${v.date}</span>
-                                        <span class="font-black text-emerald-600">${(v.montant || 0).toLocaleString()} Ar</span>
-                                    </div>`).join('')}
-                                </div>
-                            </div>
-                            <div class="bg-white rounded-[2rem] p-6 shadow-sm border border-slate-100 space-y-4">
-                                <h3 class="font-black uppercase text-rose-600 text-[10px] tracking-widest">Nouvelle Dépense</h3>
-                                <div class="space-y-2">
-                                    <input id="dMotif" placeholder="Motif..." class="w-full p-4 bg-slate-50 rounded-xl font-bold border-none outline-none text-sm">
-                                    <div class="flex gap-2">
-                                        <input id="dMnt" type="number" placeholder="Somme..." class="flex-1 p-4 bg-slate-50 rounded-xl font-black outline-none border-none text-sm">
-                                        <button id="addDepenseBtn" class="bg-rose-600 text-white px-6 rounded-xl font-black text-sm">OK</button>
-                                    </div>
+                        <div class="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-sm">
+                            <h3 class="font-black text-xs uppercase mb-6 text-rose-600">Nouvelle Dépense</h3>
+                            <div class="space-y-3">
+                                <input id="dMotif" placeholder="Motif..." class="w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none text-sm">
+                                <div class="relative">
+                                    <input id="dMnt" type="number" placeholder="Montant AR" class="w-full p-5 bg-slate-50 rounded-2xl font-black text-xl outline-none">
+                                    <button id="addDepenseBtn" class="absolute right-2 top-2 bottom-2 bg-rose-600 text-white px-8 rounded-xl font-black uppercase text-[10px]">OK</button>
                                 </div>
                             </div>
                         </div>
@@ -254,60 +306,65 @@
 
             templateClients() {
                 return `
-                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                        <div class="lg:col-span-1 bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 h-fit">
-                            <h3 class="font-black uppercase mb-6 text-indigo-600 tracking-widest text-[10px] text-center">Fiche Client</h3>
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+                        <div class="lg:col-span-1 bg-white rounded-[2.5rem] p-8 shadow-sm border border-indigo-50 h-fit">
+                            <h3 class="font-black uppercase mb-6 text-indigo-600 text-xs text-center">Nouveau Client</h3>
                             <form id="clientForm" class="space-y-4">
-                                <input name="nom" required placeholder="Nom complet" class="w-full p-4 bg-slate-50 rounded-xl font-bold border-none outline-none text-sm">
-                                <input name="tel" placeholder="Téléphone" class="w-full p-4 bg-slate-50 rounded-xl font-mono border-none outline-none text-sm">
-                                <input name="lieu" placeholder="Lieu habituel" class="w-full p-4 bg-slate-50 rounded-xl border-none outline-none text-sm">
-                                <button type="submit" class="w-full bg-slate-900 text-white py-4 rounded-xl font-black uppercase tracking-widest text-xs">Ajouter</button>
+                                <input name="nom" required placeholder="Nom" class="w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none text-sm">
+                                <input name="tel" placeholder="Téléphone" class="w-full p-4 bg-slate-50 rounded-2xl font-mono outline-none text-sm">
+                                <input name="lieu" placeholder="Adresse" class="w-full p-4 bg-slate-50 rounded-2xl outline-none text-sm">
+                                <button type="submit" class="w-full bg-slate-900 text-white py-5 rounded-2xl font-black uppercase text-xs">Enregistrer</button>
                             </form>
                         </div>
                         <div class="lg:col-span-2 bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden">
-                            <table class="w-full text-left">
-                                <thead class="text-[9px] uppercase text-slate-300 font-black border-b bg-slate-50/50">
-                                    <tr><th class="px-6 py-4">Client</th><th class="px-6 py-4">Contact</th><th class="px-6 py-4 text-right">Action</th></tr>
-                                </thead>
-                                <tbody class="divide-y divide-slate-50">
-                                    ${this.data.clients.map(c => `
-                                        <tr>
-                                            <td class="px-6 py-4"><div class="font-black text-slate-800 text-sm">${c.nom}</div><div class="text-[9px] text-slate-300 font-bold">${c.lieu || '-'}</div></td>
-                                            <td class="px-6 py-4 font-mono text-indigo-600 font-black text-xs">${c.tel || '-'}</td>
-                                            <td class="px-6 py-4 text-right"><button onclick="appState.deleteItem('clients', '${c.id}')" class="text-slate-100 hover:text-rose-500">✕</button></td>
-                                        </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
+                            <div class="p-6 border-b bg-slate-50 font-black text-xs text-slate-400 uppercase">Base Clients (${this.data.clients.length})</div>
+                            <div class="overflow-x-auto">
+                                <table class="w-full">
+                                    <tbody class="divide-y divide-slate-50">
+                                        ${this.data.clients.map(c => `
+                                            <tr class="hover:bg-slate-50/50">
+                                                <td class="px-8 py-4">
+                                                    <div class="font-black text-slate-800 text-sm">${c.nom}</div>
+                                                    <div class="text-[10px] text-slate-400 font-bold uppercase">${c.lieu || '---'}</div>
+                                                </td>
+                                                <td class="px-8 py-4 font-mono text-indigo-600 font-black text-xs">${c.tel || '---'}</td>
+                                                <td class="px-8 py-4 text-right">
+                                                    <button onclick="appState.deleteItem('clients', '${c.id}')" class="text-slate-100 hover:text-rose-500"><i data-lucide="trash-2" size="18"></i></button>
+                                                </td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
                         </div>
                     </div>`;
             },
 
             bindEvents() {
-                const venteForm = document.getElementById('venteForm');
-                if(venteForm) venteForm.onsubmit = async (e) => {
+                const vForm = document.getElementById('venteForm');
+                if(vForm) vForm.onsubmit = async (e) => {
                     e.preventDefault();
-                    const fd = new FormData(venteForm);
+                    const fd = new FormData(vForm);
                     const obj = Object.fromEntries(fd.entries());
                     try {
-                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'livraisons'), {
+                        await addDoc(collection(db, ...rootDocPath, 'livraisons'), {
                             ...obj, montant: Number(obj.montant), statut: 'Préparation',
                             timestamp: serverTimestamp(), date: new Date().toLocaleDateString('fr-FR')
                         });
                         this.setTab('livraisons');
-                    } catch(err) { logDebug("Erreur d'envoi vente"); }
+                    } catch(err) { logDebug("Erreur envoi: " + err.message, true); }
                 };
 
                 const vBtn = document.getElementById('addVersementBtn');
                 if (vBtn) vBtn.onclick = async () => {
-                    const mnt = document.getElementById('vMnt').value;
-                    if (!mnt) return;
+                    const val = document.getElementById('vMnt').value;
+                    if (!val) return;
                     try {
-                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'versements'), {
-                            montant: Number(mnt), timestamp: serverTimestamp(), date: new Date().toLocaleDateString('fr-FR')
+                        await addDoc(collection(db, ...rootDocPath, 'versements'), {
+                            montant: Number(val), timestamp: serverTimestamp(), date: new Date().toLocaleDateString('fr-FR')
                         });
                         document.getElementById('vMnt').value = "";
-                    } catch(e) {}
+                    } catch(e) { logDebug("Erreur versement: " + e.message, true); }
                 };
 
                 const dBtn = document.getElementById('addDepenseBtn');
@@ -316,61 +373,89 @@
                     const mnt = document.getElementById('dMnt').value;
                     if (!motif || !mnt) return;
                     try {
-                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'depenses'), {
+                        await addDoc(collection(db, ...rootDocPath, 'depenses'), {
                             motif, montant: Number(mnt), timestamp: serverTimestamp(), date: new Date().toLocaleDateString('fr-FR')
                         });
-                    } catch(e) {}
+                        document.getElementById('dMotif').value = ""; document.getElementById('dMnt').value = "";
+                    } catch(e) { logDebug("Erreur dépense: " + e.message, true); }
                 };
 
-                const clientForm = document.getElementById('clientForm');
-                if(clientForm) clientForm.onsubmit = async (e) => {
+                const cForm = document.getElementById('clientForm');
+                if(cForm) cForm.onsubmit = async (e) => {
                     e.preventDefault();
-                    const fd = new FormData(clientForm);
-                    const obj = Object.fromEntries(fd.entries());
+                    const fd = new FormData(cForm);
                     try {
-                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'clients'), {
-                            ...obj, createdAt: serverTimestamp()
+                        await addDoc(collection(db, ...rootDocPath, 'clients'), {
+                            ...Object.fromEntries(fd.entries()), createdAt: serverTimestamp()
                         });
-                        clientForm.reset();
-                    } catch(e) {}
+                        cForm.reset();
+                    } catch(e) { logDebug("Erreur client: " + e.message, true); }
                 };
             }
         };
 
+        // GESTION AUTH ET LISTENERS
+        const startApp = () => {
+            const getCol = (name) => collection(db, ...rootDocPath, name);
+            
+            logDebug("Chargement des flux de données...");
+            
+            // On s'assure que l'on ne lance les snapshots qu'une fois auth OK
+            onSnapshot(getCol('livraisons'), s => { 
+                appState.data.livraisons = s.docs.map(d => ({id: d.id, ...d.data()})); 
+                appState.render(); 
+            }, e => logDebug("Accès Refusé (Livraisons)", true));
+
+            onSnapshot(getCol('clients'), s => { 
+                appState.data.clients = s.docs.map(d => ({id: d.id, ...d.data()})); 
+                appState.render(); 
+            }, e => logDebug("Accès Refusé (Clients)", true));
+
+            onSnapshot(getCol('versements'), s => { 
+                appState.data.versements = s.docs.map(d => ({id: d.id, ...d.data()})); 
+                appState.render(); 
+            }, e => logDebug("Accès Refusé (Versements)", true));
+
+            onSnapshot(getCol('depenses'), s => { 
+                appState.data.depenses = s.docs.map(d => ({id: d.id, ...d.data()})); 
+                appState.render(); 
+            }, e => logDebug("Accès Refusé (Dépenses)", true));
+        };
+
         const handleAuth = async () => {
-            logDebug("Tentative d'auth anonyme...");
+            logDebug("Authentification en cours...");
             try {
                 if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
                     await signInWithCustomToken(auth, __initial_auth_token);
                 } else {
                     await signInAnonymously(auth);
                 }
-            } catch (err) {
-                logDebug("Auth échouée: " + err.message);
-            }
+            } catch (err) { logDebug("Erreur Auth: " + err.message, true); }
         };
 
         onAuthStateChanged(auth, (u) => {
             if (u) {
-                logDebug("Connecté en tant que " + u.uid);
-                appState.user = u;
-                initDataListeners();
+                logDebug("Session Auth Active ✔️");
+                startApp();
                 checkSession();
-                setTimeout(() => document.getElementById('loader').classList.add('hidden'), 1500);
+                setTimeout(() => {
+                    document.getElementById('loader').classList.add('hidden');
+                }, 1500);
             }
         });
 
         const checkSession = () => {
-            const isLogged = localStorage.getItem('rasoa_session') === 'active';
+            const isLogged = localStorage.getItem('rasoa_v1_session') === 'active';
             document.getElementById('login-screen').classList.toggle('hidden', isLogged);
             document.getElementById('main-interface').classList.toggle('hidden', !isLogged);
             if (isLogged) appState.render();
+            lucide.createIcons();
         };
 
         document.getElementById('loginForm').onsubmit = (e) => {
             e.preventDefault();
             if (document.getElementById('passwordInput').value === 'rasoa123') {
-                localStorage.setItem('rasoa_session', 'active');
+                localStorage.setItem('rasoa_v1_session', 'active');
                 checkSession();
             } else {
                 document.getElementById('loginError').classList.remove('hidden');
@@ -378,35 +463,8 @@
         };
 
         document.getElementById('logoutBtn').onclick = () => {
-            localStorage.removeItem('rasoa_session');
+            localStorage.removeItem('rasoa_v1_session');
             checkSession();
-        };
-
-        const initDataListeners = () => {
-            const getCol = (name) => collection(db, 'artifacts', appId, 'public', 'data', name);
-            
-            logDebug("Écoute des collections...");
-            
-            onSnapshot(getCol('livraisons'), s => { 
-                logDebug("Livraisons reçues: " + s.size);
-                appState.data.livraisons = s.docs.map(d => ({id: d.id, ...d.data()})); 
-                appState.render(); 
-            }, e => logDebug("Erreur Livraisons: " + e.code));
-
-            onSnapshot(getCol('clients'), s => { 
-                appState.data.clients = s.docs.map(d => ({id: d.id, ...d.data()})); 
-                appState.render(); 
-            });
-
-            onSnapshot(getCol('versements'), s => { 
-                appState.data.versements = s.docs.map(d => ({id: d.id, ...d.data()})); 
-                appState.render(); 
-            });
-
-            onSnapshot(getCol('depenses'), s => { 
-                appState.data.depenses = s.docs.map(d => ({id: d.id, ...d.data()})); 
-                appState.render(); 
-            });
         };
 
         handleAuth();
