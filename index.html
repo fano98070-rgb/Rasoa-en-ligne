@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rasoa Pro V4</title>
+    <title>Rasoa Pro V4 - Dashboard</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -11,147 +11,177 @@
     
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
-        body { font-family: 'Plus Jakarta Sans', sans-serif; margin: 0; padding: 0; }
-        .glass-effect { background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(10px); }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; background-color: #f8fafc; }
+        .safe-area-bottom { padding-bottom: env(safe-area-inset-bottom); }
     </style>
 </head>
-<body class="bg-slate-50">
+<body>
     <div id="root"></div>
 
-    <!-- Configuration et Script Firebase (Vôtre + Système) -->
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+        import { getFirestore, collection, onSnapshot, query, limit } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
 
-        // Configuration récupérée dynamiquement
+        // Récupération sécurisée de la config
         const firebaseConfig = JSON.parse(__firebase_config);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'rasoa-pro-v4';
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'rasoa-pro';
 
-        // Initialisation
         const app = initializeApp(firebaseConfig);
         const db = getFirestore(app);
         const auth = getAuth(app);
 
-        // Export pour l'interface React
-        window.FB = { app, db, auth, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, serverTimestamp, signInAnonymously, signInWithCustomToken, onAuthStateChanged, query, orderBy };
+        // Exportation globale pour React
+        window.FirebaseCore = {
+            db, auth, collection, onSnapshot, query, limit, appId
+        };
 
-        // VOTRE SCRIPT : Surveillance des Billets
-        // Note : On utilise le chemin relatif recommandé pour l'environnement
-        onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'Billets'), (snapshot) => {
-            snapshot.docChanges().forEach((change) => {
-                if (change.type === "added") {
-                    console.log("Nouveau billet détecté : ", change.doc.data());
-                    // Une notification interne peut être ajoutée ici si besoin
+        // Fonction d'authentification robuste
+        const startApp = async () => {
+            try {
+                // Règle 3 : S'authentifier AVANT toute requête
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
                 }
-            });
-        });
+                
+                // Une fois authentifié, on lance l'écouteur de console
+                const billetsRef = collection(db, 'artifacts', appId, 'public', 'data', 'Billets');
+                onSnapshot(billetsRef, (snapshot) => {
+                    snapshot.docChanges().forEach((change) => {
+                        if (change.type === "added") {
+                            console.log("Nouveau billet détecté : ", change.doc.data());
+                        }
+                    });
+                }, (error) => {
+                    // Gestion d'erreur améliorée
+                    console.error("Erreur Snapshot Billets (Console):", error.message);
+                });
+
+                // Signal à React
+                window.dispatchEvent(new Event('firebase-ready'));
+            } catch (err) {
+                console.error("Échec de l'initialisation Auth:", err);
+            }
+        };
+
+        startApp();
     </script>
 
     <script type="text/babel">
-        const { useState, useEffect, useMemo } = React;
-
-        // Icônes SVG simples
-        const AppIcon = ({ name, size = 20, className = "" }) => {
-            const icons = {
-                shopping: <path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4ZM3 6h18M16 10a4 4 0 0 1-8 0" />,
-                truck: <path d="M14 18V6a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2v11a1 1 0 0 0 1 1h2m15-5h-3V8h3l2 2v5h-2m-2 3a2 2 0 1 0 4 0 2 2 0 1 0-4 0m-13 0a2 2 0 1 0 4 0 2 2 0 1 0-4 0" />,
-                plus: <path d="M12 5v14M5 12h14" />,
-                check: <path d="M20 6 9 17l-5-5" />,
-                wallet: <path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a2 2 0 0 0 0 4h15a1 1 0 0 0 1-1v-4" />,
-                users: <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8" />
-            };
-            return (
-                <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className={className}>
-                    {icons[name]}
-                </svg>
-            );
-        };
+        const { useState, useEffect } = React;
 
         function App() {
+            const [isReady, setIsReady] = useState(false);
             const [user, setUser] = useState(null);
-            const [activeTab, setActiveTab] = useState("ventes");
             const [billets, setBillets] = useState([]);
-            const [loading, setLoading] = useState(false);
-
-            const appId = typeof __app_id !== 'undefined' ? __app_id : 'rasoa-pro-v4';
 
             useEffect(() => {
-                const checkAuth = async () => {
-                    if (!window.FB) return;
-                    const { auth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } = window.FB;
-                    
-                    if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                        await signInWithCustomToken(auth, __initial_auth_token);
-                    } else {
-                        await signInAnonymously(auth);
-                    }
-                    onAuthStateChanged(auth, setUser);
+                const handleReady = () => {
+                    const { auth } = window.FirebaseCore;
+                    // On attend que Firebase confirme le changement d'état utilisateur
+                    const unsubscribe = auth.onAuthStateChanged(u => {
+                        if (u) {
+                            setUser(u);
+                            setIsReady(true);
+                        }
+                    });
+                    return unsubscribe;
                 };
-                checkAuth();
+
+                if (window.FirebaseCore && window.FirebaseCore.auth.currentUser) {
+                    handleReady();
+                } else {
+                    window.addEventListener('firebase-ready', handleReady);
+                }
+                return () => window.removeEventListener('firebase-ready', handleReady);
             }, []);
 
             useEffect(() => {
-                if (!user || !window.FB) return;
-                const { db, collection, onSnapshot } = window.FB;
-                
-                // Synchronisation des billets pour l'affichage
-                const unsub = onSnapshot(collection(db, 'artifacts', appId, 'public', 'data', 'Billets'), 
-                    (s) => setBillets(s.docs.map(d => ({id: d.id, ...d.data()}))),
-                    (err) => console.error("Erreur Billets:", err)
-                );
-                return () => unsub();
-            }, [user]);
+                // Règle 3 : On ne lance la requête Firestore que si l'utilisateur est authentifié
+                if (!user || !isReady) return;
 
-            if (!user) return <div className="h-screen flex items-center justify-center font-bold text-slate-400">CONNEXION...</div>;
+                const { db, collection, onSnapshot, appId } = window.FirebaseCore;
+                // Règle 1 : Chemin de collection strict
+                const path = ['artifacts', appId, 'public', 'data', 'Billets'];
+                
+                const unsub = onSnapshot(
+                    collection(db, ...path),
+                    (snapshot) => {
+                        const data = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                        setBillets(data);
+                    },
+                    (err) => {
+                        console.error("Erreur Firestore React:", err.message);
+                    }
+                );
+
+                return () => unsub();
+            }, [user, isReady]);
+
+            if (!isReady) {
+                return (
+                    <div className="h-screen flex flex-col items-center justify-center space-y-4">
+                        <div className="w-12 h-12 border-4 border-indigo-600 border-t-transparent rounded-full animate-spin"></div>
+                        <p className="font-bold text-slate-400 animate-pulse uppercase tracking-widest text-[10px]">Authentification sécurisée...</p>
+                    </div>
+                );
+            }
 
             return (
-                <div className="min-h-screen pb-20">
-                    <nav className="bg-white border-b px-6 py-4 flex justify-between items-center sticky top-0 z-50">
+                <div className="min-h-screen flex flex-col max-w-md mx-auto bg-white shadow-2xl">
+                    <header className="p-6 border-b flex justify-between items-center bg-white sticky top-0 z-10">
+                        <div>
+                            <h1 className="text-xl font-extrabold tracking-tighter text-indigo-600">RASOA PRO <span className="text-slate-900">V4</span></h1>
+                            <p className="text-[10px] font-bold text-slate-400 uppercase">Gestionnaire de Billets</p>
+                        </div>
                         <div className="flex items-center gap-2">
-                            <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold italic">R</div>
-                            <span className="font-black uppercase text-sm tracking-tighter">Rasoa Pro</span>
+                            <span className="text-[8px] font-black text-slate-300 uppercase">ID: {user?.uid.slice(0, 5)}</span>
+                            <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
                         </div>
-                    </nav>
+                    </header>
 
-                    <div className="p-4 max-w-xl mx-auto">
-                        <div className="flex gap-2 mb-6 overflow-x-auto no-scrollbar">
-                            <button onClick={() => setActiveTab('ventes')} className={`px-4 py-2 rounded-xl font-bold text-xs uppercase ${activeTab === 'ventes' ? 'bg-slate-900 text-white' : 'bg-white border'}`}>Caisse</button>
-                            <button onClick={() => setActiveTab('billets')} className={`px-4 py-2 rounded-xl font-bold text-xs uppercase ${activeTab === 'billets' ? 'bg-slate-900 text-white' : 'bg-white border'}`}>Billets ({billets.length})</button>
+                    <main className="flex-1 p-4 space-y-4 overflow-y-auto">
+                        <div className="bg-indigo-600 p-6 rounded-[2rem] text-white shadow-xl shadow-indigo-100">
+                            <p className="text-xs font-bold opacity-80 uppercase mb-1">Billets synchronisés</p>
+                            <h2 className="text-4xl font-black">{billets.length}</h2>
                         </div>
 
-                        {activeTab === 'ventes' && (
-                            <div className="bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100 text-center">
-                                <h2 className="font-black uppercase text-xs text-slate-400 mb-6">Nouvelle Opération</h2>
-                                <button className="w-full bg-indigo-600 text-white py-6 rounded-3xl font-black uppercase text-xs shadow-lg active:scale-95 transition-all">
-                                    Enregistrer une vente
-                                </button>
-                            </div>
-                        )}
-
-                        {activeTab === 'billets' && (
-                            <div className="space-y-3">
-                                {billets.map(b => (
-                                    <div key={b.id} className="bg-white p-5 rounded-3xl border shadow-sm">
-                                        <p className="font-black text-slate-900">{b.titre || "Sans titre"}</p>
-                                        <p className="text-xs text-slate-500 font-bold">{b.description || "Pas de description"}</p>
-                                        <div className="mt-2 text-right">
-                                            <span className="text-[10px] font-black bg-indigo-50 text-indigo-600 px-2 py-1 rounded-full">NOUVEAU</span>
-                                        </div>
+                        <h3 className="font-black text-xs text-slate-400 uppercase px-2">Flux en temps réel</h3>
+                        
+                        <div className="space-y-3 pb-24">
+                            {billets.length > 0 ? billets.map(b => (
+                                <div key={b.id} className="p-4 bg-slate-50 border border-slate-100 rounded-3xl hover:border-indigo-200 transition-colors">
+                                    <h4 className="font-bold text-slate-900">{b.titre || "Billet sans titre"}</h4>
+                                    <p className="text-sm text-slate-500 mt-1">{b.description || "Aucune description disponible."}</p>
+                                    <div className="mt-3 flex justify-between items-center">
+                                        <span className="text-[9px] font-black bg-white px-2 py-1 rounded-lg border text-slate-400 uppercase">DOC: {b.id.slice(0, 8)}</span>
+                                        <span className="text-[10px] font-bold text-green-600 flex items-center gap-1">
+                                            <span className="w-1 h-1 bg-green-500 rounded-full"></span> À jour
+                                        </span>
                                     </div>
-                                ))}
-                                {billets.length === 0 && <p className="text-center py-10 text-slate-400 font-bold uppercase text-[10px]">Aucun billet trouvé</p>}
-                            </div>
-                        )}
-                    </div>
+                                </div>
+                            )) : (
+                                <div className="py-20 text-center space-y-3">
+                                    <p className="text-slate-300 font-bold uppercase text-xs">En attente de données</p>
+                                    <p className="text-[10px] text-slate-400 italic">Vérifiez vos autorisations Firestore ou ajoutez un document</p>
+                                </div>
+                            )}
+                        </div>
+                    </main>
 
-                    {/* Navigation Basse */}
-                    <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-md border-t p-4 flex justify-around items-center">
-                         <button onClick={() => setActiveTab('ventes')} className={`p-2 ${activeTab === 'ventes' ? 'text-indigo-600' : 'text-slate-400'}`}><AppIcon name="shopping" /></button>
-                         <button onClick={() => setActiveTab('billets')} className={`p-2 ${activeTab === 'billets' ? 'text-indigo-600' : 'text-slate-400'}`}><AppIcon name="plus" /></button>
-                         <button className="text-slate-400"><AppIcon name="wallet" /></button>
-                    </div>
+                    <nav className="fixed bottom-4 left-1/2 -translate-x-1/2 w-[90%] max-w-sm bg-slate-900 text-white p-4 rounded-3xl flex justify-around items-center shadow-2xl safe-area-bottom">
+                        <button className="text-indigo-400">
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"></path></svg>
+                        </button>
+                        <button className="bg-indigo-600 p-3 rounded-2xl -mt-12 border-4 border-white">
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M12 4v16m8-8H4"></path></svg>
+                        </button>
+                        <button className="text-slate-400">
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path></svg>
+                        </button>
+                    </nav>
                 </div>
             );
         }
