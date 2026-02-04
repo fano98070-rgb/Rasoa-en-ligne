@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rasoa Pro - V4 Stable</title>
+    <title>Rasoa Pro - V4 Intégrale</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -18,17 +18,14 @@
     <div id="root"></div>
 
     <script type="module">
-        // Importation des modules Firebase
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
         import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, serverTimestamp, query } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
         import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
 
-        // Mise à disposition globale sécurisée
         window.FirebaseSDK = { initializeApp, getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, serverTimestamp, getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged, query };
 
         const { useState, useEffect, useMemo, createElement: h } = React;
 
-        // Composant Icône en JS pur
         const Icon = ({ name, size = 20, className = "" }) => {
             const icons = {
                 shoppingCart: h('path', { d: "M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z M3 6h18 M16 10a4 4 0 0 1-8 0" }),
@@ -41,8 +38,7 @@
                 users: h('g', null,
                     h('path', { d: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" }),
                     h('circle', { cx: "9", cy: "7", r: "4" }),
-                    h('path', { d: "M22 21v-2a4 4 0 0 0-3-3.87" }),
-                    h('path', { d: "M16 3.13a4 4 0 0 1 0 7.75" })
+                    h('path', { d: "M22 21v-2a4 4 0 0 0-3-3.87" })
                 ),
                 wallet: h('g', null,
                     h('path', { d: "M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a2 2 0 0 0 0 4h15a1 1 0 0 0 1-1v-4" }),
@@ -54,7 +50,7 @@
                 ),
                 facebook: h('path', { d: "M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" }),
                 tiktok: h('path', { d: "M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5" }),
-                refresh: h('path', { d: "M21 12a9 9 0 1 1-9-9c2.52 0 4.85.83 6.72 2.24L21 8M21 3v5h-5" })
+                trash: h('path', { d: "M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" })
             };
             return h('svg', { 
                 width: size, height: size, viewBox: "0 0 24 24", fill: "none", 
@@ -80,50 +76,39 @@
             const [user, setUser] = useState(null);
             const [isAdmin, setIsAdmin] = useState(false);
             const [activeTab, setActiveTab] = useState("commandes");
+            const [showModal, setShowModal] = useState(null);
             const [status, setStatus] = useState("init"); 
-            const [retryCount, setRetryCount] = useState(0);
+            
             const [livraisons, setLivraisons] = useState([]);
-            const [orderForm, setOrderForm] = useState({ nom: "", telephone: "", montant: "", lieu: "", source: "Facebook" });
+            const [clients, setClients] = useState([]);
+            const [depenses, setDepenses] = useState([]);
 
-            const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : 'rasoa-pro-stable';
+            const [orderForm, setOrderForm] = useState({ nom: "", montant: "", lieu: "", source: "Facebook" });
+            const [clientForm, setClientForm] = useState({ nom: "", tel: "", adresse: "" });
+            const [depenseForm, setDepenseForm] = useState({ titre: "", montant: "" });
+
+            const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : 'rasoa-pro-v4';
 
             const tryInitFirebase = async () => {
                 const sdk = window.FirebaseSDK;
                 const configStr = typeof window.__firebase_config !== 'undefined' ? window.__firebase_config : null;
-
-                if (!sdk || !configStr) {
-                    setStatus("waiting");
-                    setRetryCount(c => c + 1);
-                    return;
-                }
+                if (!sdk || !configStr) { setStatus("waiting"); return; }
 
                 try {
                     const config = JSON.parse(configStr);
                     const app = sdk.initializeApp(config);
                     const auth = sdk.getAuth(app);
-
                     const token = typeof window.__initial_auth_token !== 'undefined' ? window.__initial_auth_token : null;
-                    if (token) {
-                        await sdk.signInWithCustomToken(auth, token);
-                    } else {
-                        await sdk.signInAnonymously(auth);
-                    }
+                    
+                    if (token) await sdk.signInWithCustomToken(auth, token);
+                    else await sdk.signInAnonymously(auth);
 
-                    sdk.onAuthStateChanged(auth, (u) => {
-                        if (u) {
-                            setUser(u);
-                            setStatus("ready");
-                        }
-                    });
-                } catch (e) {
-                    setStatus("error");
-                }
+                    sdk.onAuthStateChanged(auth, (u) => { if (u) { setUser(u); setStatus("ready"); } });
+                } catch (e) { setStatus("error"); }
             };
 
             useEffect(() => {
-                const timer = setInterval(() => {
-                    if (status !== "ready") tryInitFirebase();
-                }, 2000);
+                const timer = setInterval(() => { if (status !== "ready") tryInitFirebase(); }, 2000);
                 return () => clearInterval(timer);
             }, [status]);
 
@@ -131,107 +116,215 @@
                 if (status !== "ready" || !user) return;
                 const sdk = window.FirebaseSDK;
                 const db = sdk.getFirestore();
-                const colRef = sdk.collection(db, 'artifacts', appId, 'public', 'data', 'livraisons');
+                const getCol = (name) => sdk.collection(db, 'artifacts', appId, 'public', 'data', name);
 
-                return sdk.onSnapshot(colRef, s => {
-                    setLivraisons(s.docs.map(d => ({id: d.id, ...d.data()})));
-                }, (e) => console.error("Firestore error:", e));
+                const unsubLiv = sdk.onSnapshot(getCol('livraisons'), s => setLivraisons(s.docs.map(d => ({id: d.id, ...d.data()}))));
+                const unsubCli = sdk.onSnapshot(getCol('clients'), s => setClients(s.docs.map(d => ({id: d.id, ...d.data()}))));
+                const unsubDep = sdk.onSnapshot(getCol('depenses'), s => setDepenses(s.docs.map(d => ({id: d.id, ...d.data()}))));
+
+                return () => { unsubLiv(); unsubCli(); unsubDep(); };
             }, [status, user]);
 
+            const stats = useMemo(() => {
+                const ventes = livraisons.filter(l => l.statut === "Livré").reduce((acc, c) => acc + (Number(c.montant) || 0), 0);
+                const charges = depenses.reduce((acc, c) => acc + (Number(c.montant) || 0), 0);
+                return { ventes, charges, net: ventes - charges };
+            }, [livraisons, depenses]);
+
             if (status !== "ready") {
-                return h('div', { className: "h-screen flex flex-col items-center justify-center bg-slate-900 text-white p-6 text-center" },
-                    h('div', { className: "w-12 h-12 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-6" }),
-                    h('h2', { className: "text-lg font-black uppercase italic tracking-tighter" }, "Initialisation Sécurisée"),
-                    h('p', { className: "text-slate-400 text-[9px] font-bold uppercase tracking-widest mt-2" }, 
-                        `Tentative ${retryCount} - En attente du Cloud...`
-                    )
+                return h('div', { className: "h-screen flex flex-col items-center justify-center bg-slate-900 text-white p-6" },
+                    h('div', { className: "w-10 h-10 border-4 border-indigo-500 border-t-transparent rounded-full animate-spin mb-4" }),
+                    h('p', { className: "text-[10px] font-black uppercase tracking-widest opacity-50" }, "Connexion Cloud...")
                 );
             }
 
             if (!isAdmin) {
                 return h('div', { className: "min-h-screen flex items-center justify-center p-6 bg-slate-900" },
                     h('div', { className: "bg-white p-10 rounded-[3rem] w-full max-w-sm text-center shadow-2xl" },
-                        h('div', { className: "w-16 h-16 bg-indigo-600 rounded-2xl mx-auto mb-6 flex items-center justify-center text-white font-black text-2xl italic" }, "R"),
-                        h('h1', { className: "text-2xl font-black mb-1 italic uppercase" }, "RASOA PRO"),
-                        h('p', { className: "text-slate-400 text-[8px] font-bold mb-8 tracking-widest uppercase" }, "Accès Cloud Activé"),
+                        h('div', { className: "w-16 h-16 bg-indigo-600 rounded-2xl mx-auto mb-6 flex items-center justify-center text-white font-black text-2xl" }, "R"),
+                        h('h1', { className: "text-2xl font-black mb-1 uppercase italic" }, "Rasoa Pro"),
+                        h('p', { className: "text-slate-400 text-[8px] font-bold mb-8 tracking-widest uppercase" }, "Gestionnaire de Ventes V4"),
                         h('button', { 
                             onClick: () => setIsAdmin(true),
-                            className: "w-full bg-slate-900 text-white font-black py-4 rounded-2xl uppercase tracking-widest text-[9px] hover:bg-indigo-600 transition-all active:scale-95" 
-                        }, "Entrer dans le Dashboard")
+                            className: "w-full bg-slate-900 text-white font-black py-4 rounded-2xl uppercase tracking-widest text-[9px] hover:bg-indigo-600 transition-all active:scale-95 shadow-lg" 
+                        }, "Accéder au Dashboard")
                     )
                 );
             }
 
-            return h('div', { className: "min-h-screen bg-slate-50" },
-                h('header', { className: "bg-white border-b px-6 py-4 flex items-center justify-between sticky top-0 z-50" },
+            return h('div', { className: "min-h-screen bg-slate-50 pb-10" },
+                h('header', { className: "bg-white/80 backdrop-blur-md border-b px-6 py-4 flex items-center justify-between sticky top-0 z-50" },
                     h('div', { className: "flex items-center gap-2" },
                         h('div', { className: "w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center text-white font-black italic text-xs" }, "R"),
                         h('span', { className: "font-black text-lg italic uppercase tracking-tighter" }, "Rasoa Pro")
                     ),
                     h('div', { className: "flex gap-2" },
-                        h('button', { className: "p-2.5 bg-indigo-50 text-indigo-600 rounded-xl" }, h(Icon, { name: "users", size: 18 }))
+                        h('button', { onClick: () => setShowModal('client'), className: "p-2.5 bg-indigo-50 text-indigo-600 rounded-xl" }, h(Icon, { name: "users", size: 18 })),
+                        h('button', { onClick: () => setShowModal('depense'), className: "p-2.5 bg-rose-50 text-rose-600 rounded-xl" }, h(Icon, { name: "wallet", size: 18 }))
                     )
                 ),
+
                 h('main', { className: "max-w-2xl mx-auto p-4 pt-8" },
-                    h('nav', { className: "flex gap-2 mb-8" },
-                        h('button', { 
-                            onClick: () => setActiveTab('commandes'),
-                            className: `flex-1 py-4 rounded-2xl font-black text-[9px] uppercase border transition-all ${activeTab === 'commandes' ? 'bg-slate-900 text-white' : 'bg-white text-slate-400'}`
-                        }, "Nouvelle Vente"),
-                        h('button', { 
-                            onClick: () => setActiveTab('livraisons'),
-                            className: `flex-1 py-4 rounded-2xl font-black text-[9px] uppercase border transition-all ${activeTab === 'livraisons' ? 'bg-slate-900 text-white' : 'bg-white text-slate-400'}`
-                        }, `Suivi (${livraisons.length})`)
+                    h('nav', { className: "flex gap-2 mb-8 overflow-x-auto no-scrollbar" },
+                        [
+                            {id: 'commandes', label: 'Vente', icon: 'shoppingCart'},
+                            {id: 'livraisons', label: 'Suivi', icon: 'truck'},
+                            {id: 'clients', label: 'Clients', icon: 'users'},
+                            {id: 'finances', label: 'Stats', icon: 'wallet'}
+                        ].map(tab => h('button', { 
+                            key: tab.id,
+                            onClick: () => setActiveTab(tab.id),
+                            className: `flex-1 flex items-center justify-center gap-2 py-4 px-4 rounded-2xl font-black text-[9px] uppercase border transition-all whitespace-nowrap ${activeTab === tab.id ? 'bg-slate-900 text-white shadow-lg' : 'bg-white text-slate-400'}`
+                        }, h(Icon, { name: tab.icon, size: 14 }), tab.label))
                     ),
-                    
-                    activeTab === 'commandes' ? h('div', { className: "bg-white p-8 rounded-[2.5rem] shadow-xl border" },
+
+                    activeTab === 'commandes' && h('div', { className: "bg-white p-8 rounded-[2.5rem] shadow-xl border" },
+                        h('div', { className: "flex justify-center gap-4 mb-6" },
+                            h('button', { onClick: () => setOrderForm({...orderForm, source: 'Facebook'}), className: `p-4 rounded-xl border-2 ${orderForm.source === 'Facebook' ? 'border-indigo-600 bg-indigo-50 text-indigo-600' : 'border-transparent bg-slate-50 opacity-40'}` }, h(Icon, { name: "facebook", size: 24 })),
+                            h('button', { onClick: () => setOrderForm({...orderForm, source: 'TikTok'}), className: `p-4 rounded-xl border-2 ${orderForm.source === 'TikTok' ? 'border-slate-900 bg-slate-900 text-white' : 'border-transparent bg-slate-50 opacity-40'}` }, h(Icon, { name: "tiktok", size: 24 }))
+                        ),
                         h('div', { className: "space-y-4" },
-                            h('input', { 
-                                value: orderForm.nom, 
-                                onChange: e => setOrderForm({...orderForm, nom: e.target.value}),
-                                placeholder: "Nom du client",
-                                className: "w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none"
-                            }),
-                            h('input', { 
-                                value: orderForm.montant, 
-                                type: "number",
-                                onChange: e => setOrderForm({...orderForm, montant: e.target.value}),
-                                placeholder: "Montant (Ar)",
-                                className: "w-full p-4 bg-slate-50 rounded-2xl font-black text-indigo-600 text-xl outline-none"
-                            }),
+                            h('input', { value: orderForm.nom, onChange: e => setOrderForm({...orderForm, nom: e.target.value}), placeholder: "Nom du client", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none" }),
+                            h('input', { value: orderForm.lieu, onChange: e => setOrderForm({...orderForm, lieu: e.target.value}), placeholder: "Lieu de livraison", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none" }),
+                            h('div', { className: "pt-2" },
+                                h('label', { className: "text-[8px] font-black uppercase text-slate-400 ml-2" }, "Montant Ar"),
+                                h('input', { type: "number", value: orderForm.montant, onChange: e => setOrderForm({...orderForm, montant: e.target.value}), placeholder: "0", className: "w-full p-4 bg-slate-50 rounded-2xl font-black text-indigo-600 text-2xl outline-none" })
+                            ),
                             h('button', {
                                 onClick: async () => {
                                     if(!orderForm.nom || !orderForm.montant) return;
                                     const sdk = window.FirebaseSDK;
-                                    const db = sdk.getFirestore();
-                                    await sdk.addDoc(sdk.collection(db, 'artifacts', appId, 'public', 'data', 'livraisons'), { 
-                                        ...orderForm, 
-                                        montant: Number(orderForm.montant), 
-                                        statut: "En cours", 
-                                        timestamp: sdk.serverTimestamp() 
+                                    await sdk.addDoc(sdk.collection(sdk.getFirestore(), 'artifacts', appId, 'public', 'data', 'livraisons'), { 
+                                        ...orderForm, montant: Number(orderForm.montant), statut: "En cours", timestamp: sdk.serverTimestamp() 
                                     });
-                                    setOrderForm({ nom: "", telephone: "", montant: "", lieu: "", source: "Facebook" });
+                                    setOrderForm({ nom: "", montant: "", lieu: "", source: orderForm.source });
                                     setActiveTab("livraisons");
                                 },
-                                className: "w-full bg-indigo-600 text-white py-5 rounded-2xl font-black uppercase text-[10px] shadow-lg active:scale-95 transition-all mt-4"
-                            }, "Enregistrer")
+                                className: "w-full bg-slate-900 text-white py-5 rounded-3xl font-black uppercase text-[10px] shadow-xl mt-4"
+                            }, "Enregistrer la vente")
                         )
-                    ) : h('div', { className: "space-y-3" },
+                    ),
+
+                    activeTab === 'livraisons' && h('div', { className: "space-y-3" },
                         livraisons.length === 0 ? h('p', { className: "text-center py-20 text-slate-300 font-black uppercase text-[10px]" }, "Aucune livraison") :
-                        livraisons.map(l => h('div', { key: l.id, className: "bg-white p-5 rounded-3xl border flex justify-between items-center" },
-                            h('div', null,
-                                h('p', { className: "font-black text-xs uppercase" }, l.nom),
-                                h('p', { className: "text-indigo-600 font-bold text-sm" }, `${(l.montant || 0).toLocaleString()} Ar`)
+                        livraisons.map(l => h('div', { key: l.id, className: "bg-white p-5 rounded-[2rem] border shadow-sm relative overflow-hidden" },
+                            h('div', { className: "flex justify-between items-start mb-2" },
+                                h('div', null,
+                                    h('div', { className: "flex items-center gap-2 mb-1" },
+                                        h('div', { className: `p-1 rounded ${l.source === 'Facebook' ? 'text-indigo-600 bg-indigo-50' : 'text-slate-900 bg-slate-100'}` }, h(Icon, { name: l.source.toLowerCase(), size: 10 })),
+                                        h('span', { className: "font-black text-[10px] uppercase" }, l.nom)
+                                    ),
+                                    h('p', { className: "text-[10px] font-bold text-slate-400 flex items-center gap-1" }, h(Icon, { name: "truck", size: 10 }), l.lieu || "Non précisé")
+                                ),
+                                h('span', { className: `px-2 py-1 rounded-full text-[7px] font-black uppercase ${l.statut === 'Livré' ? 'bg-green-100 text-green-600' : 'bg-amber-100 text-amber-600'}` }, l.statut)
                             ),
-                            h('button', {
-                                onClick: async () => {
-                                    const sdk = window.FirebaseSDK;
-                                    const db = sdk.getFirestore();
-                                    await sdk.deleteDoc(sdk.doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', l.id));
-                                },
-                                className: "p-2 text-rose-500 bg-rose-50 rounded-xl"
-                            }, "Supprimer")
+                            h('div', { className: "flex justify-between items-center pt-3 border-t border-slate-50" },
+                                h('span', { className: "font-black text-indigo-600" }, `${(l.montant || 0).toLocaleString()} Ar`),
+                                h('div', { className: "flex gap-2" },
+                                    l.statut !== 'Livré' && h('button', {
+                                        onClick: async () => {
+                                            const sdk = window.FirebaseSDK;
+                                            await sdk.updateDoc(sdk.doc(sdk.getFirestore(), 'artifacts', appId, 'public', 'data', 'livraisons', l.id), { statut: 'Livré' });
+                                        },
+                                        className: "px-4 py-2 bg-slate-900 text-white rounded-xl text-[8px] font-black uppercase"
+                                    }, "Terminer"),
+                                    h('button', {
+                                        onClick: async () => {
+                                            const sdk = window.FirebaseSDK;
+                                            await sdk.deleteDoc(sdk.doc(sdk.getFirestore(), 'artifacts', appId, 'public', 'data', 'livraisons', l.id));
+                                        },
+                                        className: "p-2 text-rose-500 bg-rose-50 rounded-xl"
+                                    }, h(Icon, { name: "trash", size: 14 }))
+                                )
+                            )
                         ))
+                    ),
+
+                    activeTab === 'clients' && h('div', { className: "bg-white rounded-[2.5rem] border overflow-hidden shadow-xl" },
+                        h('div', { className: "divide-y" },
+                            clients.length === 0 ? h('p', { className: "p-10 text-center text-slate-300 text-[10px] font-black uppercase" }, "Aucun client enregistré") :
+                            clients.map(c => h('div', { key: c.id, className: "p-6 flex items-center justify-between" },
+                                h('div', { className: "flex items-center gap-4" },
+                                    h('div', { className: "w-10 h-10 bg-indigo-50 text-indigo-600 rounded-full flex items-center justify-center font-black text-xs" }, c.nom.charAt(0)),
+                                    h('div', null,
+                                        h('p', { className: "font-black text-xs uppercase" }, c.nom),
+                                        h('p', { className: "text-[10px] font-bold text-indigo-500" }, c.tel)
+                                    )
+                                ),
+                                h('div', { className: "text-[8px] font-black text-slate-400 bg-slate-100 px-3 py-1 rounded-full uppercase" }, c.adresse || "N/A")
+                            ))
+                        )
+                    ),
+
+                    activeTab === 'finances' && h('div', { className: "space-y-4" },
+                        h('div', { className: "grid grid-cols-2 gap-4" },
+                            h('div', { className: "bg-white p-6 rounded-[2rem] border shadow-sm" },
+                                h('p', { className: "text-[8px] font-black text-green-500 uppercase mb-1" }, "Ventes (Livré)"),
+                                h('p', { className: "text-lg font-black" }, `${stats.ventes.toLocaleString()} Ar`)
+                            ),
+                            h('div', { className: "bg-white p-6 rounded-[2rem] border shadow-sm" },
+                                h('p', { className: "text-[8px] font-black text-rose-500 uppercase mb-1" }, "Dépenses"),
+                                h('p', { className: "text-lg font-black" }, `${stats.charges.toLocaleString()} Ar`)
+                            )
+                        ),
+                        h('div', { className: "bg-indigo-600 p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden" },
+                            h('div', { className: "relative z-10" },
+                                h('p', { className: "text-[9px] font-black uppercase opacity-60 mb-1 tracking-widest" }, "Bénéfice Net"),
+                                h('p', { className: "text-4xl font-black tracking-tighter" }, `${stats.net.toLocaleString()} Ar`)
+                            ),
+                            h('div', { className: "absolute -right-10 -bottom-10 w-40 h-40 bg-white/10 rounded-full" })
+                        ),
+                        h('div', { className: "bg-white p-4 rounded-[2rem] border" },
+                            h('h3', { className: "text-[10px] font-black uppercase mb-4 px-2" }, "Journal des dépenses"),
+                            h('div', { className: "space-y-2" },
+                                depenses.map(d => h('div', { key: d.id, className: "flex justify-between items-center p-3 bg-slate-50 rounded-xl" },
+                                    h('span', { className: "text-[10px] font-bold uppercase" }, d.titre),
+                                    h('div', { className: "flex items-center gap-3" },
+                                        h('span', { className: "text-[10px] font-black text-rose-600" }, `-${d.montant.toLocaleString()} Ar`),
+                                        h('button', { 
+                                            onClick: async () => {
+                                                const sdk = window.FirebaseSDK;
+                                                await sdk.deleteDoc(sdk.doc(sdk.getFirestore(), 'artifacts', appId, 'public', 'data', 'depenses', d.id));
+                                            },
+                                            className: "text-slate-300"
+                                        }, h(Icon, { name: "plus", size: 14, className: "rotate-45" }))
+                                    )
+                                ))
+                            )
+                        )
+                    )
+                ),
+
+                h(Modal, { isOpen: showModal === 'client', onClose: () => setShowModal(null), title: "Nouveau Client" },
+                    h('div', { className: "space-y-4" },
+                        h('input', { value: clientForm.nom, onChange: e => setClientForm({...clientForm, nom: e.target.value}), placeholder: "Nom complet", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none" }),
+                        h('input', { value: clientForm.tel, onChange: e => setClientForm({...clientForm, tel: e.target.value}), placeholder: "Téléphone", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none" }),
+                        h('input', { value: clientForm.adresse, onChange: e => setClientForm({...clientForm, adresse: e.target.value}), placeholder: "Quartier", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none" }),
+                        h('button', {
+                            onClick: async () => {
+                                if(!clientForm.nom) return;
+                                const sdk = window.FirebaseSDK;
+                                await sdk.addDoc(sdk.collection(sdk.getFirestore(), 'artifacts', appId, 'public', 'data', 'clients'), { ...clientForm, timestamp: sdk.serverTimestamp() });
+                                setClientForm({ nom: "", tel: "", adresse: "" }); setShowModal(null);
+                            },
+                            className: "w-full bg-slate-900 text-white py-5 rounded-2xl font-black uppercase text-[10px] mt-4"
+                        }, "Ajouter au répertoire")
+                    )
+                ),
+
+                h(Modal, { isOpen: showModal === 'depense', onClose: () => setShowModal(null), title: "Enregistrer Dépense" },
+                    h('div', { className: "space-y-4" },
+                        h('input', { value: depenseForm.titre, onChange: e => setDepenseForm({...depenseForm, titre: e.target.value}), placeholder: "Motif", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none" }),
+                        h('input', { type: "number", value: depenseForm.montant, onChange: e => setDepenseForm({...depenseForm, montant: e.target.value}), placeholder: "Montant Ar", className: "w-full p-4 bg-slate-50 rounded-2xl font-black text-rose-600 text-xl outline-none" }),
+                        h('button', {
+                            onClick: async () => {
+                                if(!depenseForm.titre || !depenseForm.montant) return;
+                                const sdk = window.FirebaseSDK;
+                                await sdk.addDoc(sdk.collection(sdk.getFirestore(), 'artifacts', appId, 'public', 'data', 'depenses'), { titre: depenseForm.titre, montant: Number(depenseForm.montant), timestamp: sdk.serverTimestamp() });
+                                setDepenseForm({ titre: "", montant: "" }); setShowModal(null);
+                            },
+                            className: "w-full bg-rose-600 text-white py-5 rounded-2xl font-black uppercase text-[10px] mt-4 shadow-lg shadow-rose-200"
+                        }, "Déduire du budget")
                     )
                 )
             );
