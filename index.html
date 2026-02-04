@@ -3,17 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rasoa Pro - V4 Stable</title>
+    <title>Rasoa Pro - V4 Connecté</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
-        body { font-family: 'Plus Jakarta Sans', sans-serif; overflow-x: hidden; }
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
         .tab-active { background-color: #0f172a; color: white; transform: scale(1.05); }
+        .source-btn-active { border-color: #4f46e5; background-color: #eef2ff; color: #4f46e5; }
+        .source-btn-active-tk { border-color: #0f172a; background-color: #f8fafc; color: #0f172a; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
-        .source-btn-active { border-color: #4f46e5; background-color: #eef2ff; color: #4f46e5; transform: scale(1.05); }
-        .source-btn-active-tk { border-color: #0f172a; background-color: #f8fafc; transform: scale(1.05); }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-900 text-[13px]">
@@ -22,20 +22,20 @@
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
         import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, serverTimestamp, query } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-auth.js";
 
         const { useState, useEffect, useMemo, createElement: h } = React;
 
-        // Configuration Firebase
-        const firebaseConfig = JSON.parse(window.__firebase_config || '{}');
-        const appId = typeof window.__app_id !== 'undefined' ? window.__app_id : 'rasoa-pro-v4';
-        
-        let app, auth, db;
-        try {
-            app = initializeApp(firebaseConfig);
-            auth = getAuth(app);
-            db = getFirestore(app);
-        } catch (e) { console.error("Firebase Init Error:", e); }
+        const firebaseConfig = {
+            apiKey: "AIzaSyBYcWoieRAH-uY1LXCiXVqLqFdijDo17dI",
+            authDomain: "rasoa-pro.firebaseapp.com",
+            projectId: "rasoa-pro",
+            storageBucket: "rasoa-pro.firebasestorage.app",
+            messagingSenderId: "344947402269",
+            appId: "1:344947402269:web:76dfee1a27e780e80ac8f4",
+            measurementId: "G-NL45NY47LG"
+        };
+
+        const appId = "rasoa-pro-v4";
 
         const Icon = ({ name, size = 20, className = "" }) => {
             const icons = {
@@ -67,7 +67,7 @@
         };
 
         function App() {
-            const [user, setUser] = useState(null);
+            const [db, setDb] = useState(null);
             const [activeTab, setActiveTab] = useState("commandes");
             const [showModal, setShowModal] = useState(null);
             
@@ -80,44 +80,34 @@
             const [depenseForm, setDepenseForm] = useState({ titre: "", montant: "" });
 
             useEffect(() => {
-                const initAuth = async () => {
-                    if (!auth) return;
-                    try {
-                        if (window.__initial_auth_token) {
-                            await signInWithCustomToken(auth, window.__initial_auth_token);
-                        } else {
-                            await signInAnonymously(auth);
-                        }
-                    } catch (e) { console.error("Auth Error", e); }
-                };
-                initAuth();
-                const unsub = onAuthStateChanged(auth, setUser);
-                return () => unsub();
+                try {
+                    const app = initializeApp(firebaseConfig);
+                    const _db = getFirestore(app);
+                    setDb(_db);
+                } catch (e) {
+                    console.error("Firebase init error:", e);
+                }
             }, []);
 
+            // Correction des chemins de collection (Segment impair requis: artifacts/ID/public/data/NAME)
             useEffect(() => {
-                if (!user || !db) return;
-                const path = (coll) => collection(db, 'artifacts', appId, 'public', 'data', coll);
-                const unsubL = onSnapshot(path('livraisons'), s => setLivraisons(s.docs.map(d => ({id: d.id, ...d.data()}))));
-                const unsubC = onSnapshot(path('clients'), s => setClients(s.docs.map(d => ({id: d.id, ...d.data()}))));
-                const unsubD = onSnapshot(path('depenses'), s => setDepenses(s.docs.map(d => ({id: d.id, ...d.data()}))));
+                if (!db) return;
+                const getColl = (name) => collection(db, 'artifacts', appId, 'public', 'data', name);
+                
+                const unsubL = onSnapshot(getColl('livraisons'), s => setLivraisons(s.docs.map(d => ({id: d.id, ...d.data()}))), e => console.log("L error:", e));
+                const unsubC = onSnapshot(getColl('clients'), s => setClients(s.docs.map(d => ({id: d.id, ...d.data()}))), e => console.log("C error:", e));
+                const unsubD = onSnapshot(getColl('depenses'), s => setDepenses(s.docs.map(d => ({id: d.id, ...d.data()}))), e => console.log("D error:", e));
+                
                 return () => { unsubL(); unsubC(); unsubD(); };
-            }, [user]);
+            }, [db]);
 
-            // CALCULS AUTOMATIQUES DES VERSEMENTS
             const stats = useMemo(() => {
-                const versementsEffectifs = livraisons
-                    .filter(l => l.statut === "Livré")
-                    .reduce((acc, c) => acc + (Number(c.montant) || 0), 0);
-                
-                const totalDepenses = depenses.reduce((acc, c) => acc + (Number(c.montant) || 0), 0);
-                
-                return { 
-                    ventes: versementsEffectifs, 
-                    charges: totalDepenses, 
-                    net: versementsEffectifs - totalDepenses 
-                };
+                const livrees = livraisons.filter(l => l.statut === "Livré").reduce((acc, c) => acc + (Number(c.montant) || 0), 0);
+                const charges = depenses.reduce((acc, c) => acc + (Number(c.montant) || 0), 0);
+                return { ventes: livrees, charges: charges, net: livrees - charges };
             }, [livraisons, depenses]);
+
+            if (!db) return h('div', { className: "h-screen flex items-center justify-center font-black" }, "CONNEXION FIREBASE...");
 
             return h('div', { className: "min-h-screen bg-slate-50 flex flex-col" },
                 h('header', { className: "bg-white border-b px-6 py-4 flex items-center justify-between sticky top-0 z-50 shadow-sm" },
@@ -132,7 +122,7 @@
                 ),
 
                 h('main', { className: "max-w-2xl mx-auto w-full p-4 flex-1 pb-24" },
-                    h('nav', { className: "flex gap-2 mb-8 overflow-x-auto no-scrollbar" },
+                    h('nav', { className: "flex gap-2 mb-8" },
                         [
                             {id: 'commandes', label: 'Vente', icon: 'shoppingCart'},
                             {id: 'livraisons', label: 'Suivi', icon: 'truck'},
@@ -140,43 +130,34 @@
                             {id: 'finances', label: 'Stats', icon: 'wallet'}
                         ].map(tab => h('button', { 
                             key: tab.id, onClick: () => setActiveTab(tab.id),
-                            className: `flex-1 flex items-center justify-center gap-2 py-4 px-4 rounded-2xl font-black text-[10px] uppercase border transition-all ${activeTab === tab.id ? 'tab-active shadow-xl border-slate-900' : 'bg-white text-slate-400 border-slate-100'}`
+                            className: `flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl font-black text-[10px] uppercase border transition-all ${activeTab === tab.id ? 'tab-active shadow-xl' : 'bg-white text-slate-400 border-slate-100'}`
                         }, h(Icon, { name: tab.icon, size: 14 }), tab.label))
                     ),
 
-                    // ONGLET VENTE
                     activeTab === 'commandes' && h('div', { className: "bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100" },
-                        h('p', { className: "text-center text-[10px] font-black uppercase text-slate-400 mb-4" }, "Source de la commande"),
                         h('div', { className: "flex justify-center gap-6 mb-8" },
-                            h('button', { 
-                                onClick: () => setOrderForm({...orderForm, source: 'Facebook'}), 
-                                className: `flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${orderForm.source === 'Facebook' ? 'source-btn-active' : 'border-transparent bg-slate-50 opacity-40'}` 
-                            }, h(Icon, { name: "facebook", size: 32 }), h('span', { className: "text-[8px] font-black" }, "FACEBOOK")),
-                            h('button', { 
-                                onClick: () => setOrderForm({...orderForm, source: 'TikTok'}), 
-                                className: `flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${orderForm.source === 'TikTok' ? 'source-btn-active-tk' : 'border-transparent bg-slate-50 opacity-40'}` 
-                            }, h(Icon, { name: "tiktok", size: 32 }), h('span', { className: "text-[8px] font-black" }, "TIKTOK"))
+                            h('button', { onClick: () => setOrderForm({...orderForm, source: 'Facebook'}), className: `flex flex-col items-center gap-2 p-4 rounded-2xl border-2 ${orderForm.source === 'Facebook' ? 'source-btn-active' : 'border-transparent opacity-40'}` }, h(Icon, { name: "facebook", size: 32 }), h('span', { className: "text-[8px] font-black" }, "FACEBOOK")),
+                            h('button', { onClick: () => setOrderForm({...orderForm, source: 'TikTok'}), className: `flex flex-col items-center gap-2 p-4 rounded-2xl border-2 ${orderForm.source === 'TikTok' ? 'source-btn-active-tk' : 'border-transparent opacity-40'}` }, h(Icon, { name: "tiktok", size: 32 }), h('span', { className: "text-[8px] font-black" }, "TIKTOK"))
                         ),
                         h('div', { className: "space-y-4" },
-                            h('input', { value: orderForm.nom, onChange: e => setOrderForm({...orderForm, nom: e.target.value}), placeholder: "Nom du client", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none border-2 border-transparent focus:border-slate-200" }),
-                            h('input', { value: orderForm.lieu, onChange: e => setOrderForm({...orderForm, lieu: e.target.value}), placeholder: "Lieu de livraison", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none border-2 border-transparent focus:border-slate-200" }),
-                            h('input', { type: "number", value: orderForm.montant, onChange: e => setOrderForm({...orderForm, montant: e.target.value}), placeholder: "Montant Ar", className: "w-full p-5 bg-slate-50 rounded-2xl font-black text-indigo-600 text-3xl outline-none border-2 border-transparent focus:border-indigo-100" }),
+                            h('input', { value: orderForm.nom, onChange: e => setOrderForm({...orderForm, nom: e.target.value}), placeholder: "Nom du client", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold" }),
+                            h('input', { value: orderForm.lieu, onChange: e => setOrderForm({...orderForm, lieu: e.target.value}), placeholder: "Lieu", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold" }),
+                            h('input', { type: "number", value: orderForm.montant, onChange: e => setOrderForm({...orderForm, montant: e.target.value}), placeholder: "Ar", className: "w-full p-5 bg-slate-50 rounded-2xl font-black text-indigo-600 text-3xl" }),
                             h('button', {
                                 onClick: async () => {
-                                    if(!user || !orderForm.nom || !orderForm.montant) return;
+                                    if(!orderForm.nom || !orderForm.montant) return;
                                     await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'livraisons'), { ...orderForm, montant: Number(orderForm.montant), statut: "En cours", timestamp: serverTimestamp() });
                                     setOrderForm({ nom: "", montant: "", lieu: "", source: orderForm.source });
                                     setActiveTab("livraisons");
                                 },
-                                className: "w-full bg-slate-900 text-white py-5 rounded-3xl font-black uppercase text-[11px] shadow-xl mt-4 active:scale-95 transition-all"
-                            }, "Enregistrer la vente")
+                                className: "w-full bg-slate-900 text-white py-5 rounded-3xl font-black uppercase text-[11px] shadow-xl"
+                            }, "Enregistrer")
                         )
                     ),
 
-                    // ONGLET SUIVI
                     activeTab === 'livraisons' && h('div', { className: "space-y-3" },
-                        livraisons.length === 0 ? h('p', { className: "text-center py-20 text-slate-300 font-black uppercase text-[10px]" }, "Aucune livraison") :
-                        livraisons.map(l => h('div', { key: l.id, className: "bg-white p-5 rounded-[2rem] border border-slate-100 shadow-sm" },
+                        livraisons.length === 0 ? h('p', {className: "text-center text-slate-400 py-10 font-bold"}, "Aucune livraison en cours") :
+                        livraisons.map(l => h('div', { key: l.id, className: "bg-white p-5 rounded-[2rem] border shadow-sm" },
                             h('div', { className: "flex justify-between items-start" },
                                 h('div', null,
                                     h('div', { className: "flex items-center gap-2 mb-1" },
@@ -185,7 +166,7 @@
                                     ),
                                     h('p', { className: "text-[10px] font-bold text-slate-400" }, l.lieu)
                                 ),
-                                h('span', { className: `px-3 py-1 rounded-full text-[8px] font-black uppercase ${l.statut === 'Livré' ? 'bg-green-100 text-green-600 border border-green-200' : 'bg-amber-100 text-amber-600 border border-amber-200'}` }, l.statut)
+                                h('span', { className: `px-3 py-1 rounded-full text-[8px] font-black uppercase ${l.statut === 'Livré' ? 'bg-green-100 text-green-600 border-green-200' : 'bg-amber-100 text-amber-600 border-amber-200'}` }, l.statut)
                             ),
                             h('div', { className: "flex justify-between items-center mt-4 pt-3 border-t" },
                                 h('span', { className: "font-black text-indigo-600 text-base" }, `${(l.montant || 0).toLocaleString()} Ar`),
@@ -193,19 +174,15 @@
                                     l.statut !== 'Livré' && h('button', {
                                         onClick: () => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', l.id), { statut: 'Livré' }),
                                         className: "px-5 py-2.5 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase"
-                                    }, "Valider Versement"),
-                                    h('button', {
-                                        onClick: () => deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', l.id)),
-                                        className: "p-2.5 text-rose-500 bg-rose-50 rounded-xl"
-                                    }, h(Icon, { name: "trash", size: 14 }))
+                                    }, "Valider"),
+                                    h('button', { onClick: () => deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', l.id)), className: "p-2.5 text-rose-500 bg-rose-50 rounded-xl" }, h(Icon, { name: "trash", size: 14 }))
                                 )
                             )
                         ))
                     ),
 
-                    // ONGLET CLIENTS
-                    activeTab === 'clients' && h('div', { className: "bg-white rounded-[2.5rem] border border-slate-100 shadow-xl" },
-                        clients.length === 0 ? h('p', { className: "p-20 text-center text-slate-300 font-black uppercase text-[10px]" }, "Aucun client") :
+                    activeTab === 'clients' && h('div', { className: "bg-white rounded-[2.5rem] border shadow-xl overflow-hidden" },
+                        clients.length === 0 ? h('p', {className: "p-10 text-center text-slate-400 font-bold"}, "Aucun client enregistré") :
                         clients.map(c => h('div', { key: c.id, className: "p-6 flex items-center justify-between border-b last:border-0" },
                             h('div', null,
                                 h('div', { className: "flex items-center gap-2" },
@@ -214,19 +191,18 @@
                                 ),
                                 h('p', { className: "text-[10px] font-bold text-indigo-500" }, c.tel)
                             ),
-                            h('div', { className: "text-[8px] font-black text-slate-400 bg-slate-100 px-3 py-1 rounded-full uppercase" }, c.adresse || "Tana")
+                            h('div', { className: "text-[8px] font-black text-slate-400 bg-slate-50 px-3 py-1 rounded-full border uppercase" }, c.adresse || "Tana")
                         ))
                     ),
 
-                    // ONGLET STATS
                     activeTab === 'finances' && h('div', { className: "space-y-4" },
-                        h('div', { className: "bg-indigo-600 p-8 rounded-[2.5rem] text-white shadow-2xl" },
+                        h('div', { className: "bg-slate-900 p-8 rounded-[2.5rem] text-white shadow-2xl" },
                             h('p', { className: "text-[10px] font-black uppercase opacity-60 mb-1" }, "Solde Net (Ventes Livrées - Dépenses)"),
                             h('p', { className: "text-4xl font-black tracking-tighter" }, `${stats.net.toLocaleString()} Ar`)
                         ),
                         h('div', { className: "grid grid-cols-2 gap-4" },
                             h('div', { className: "bg-white p-5 rounded-3xl border" },
-                                h('p', { className: "text-[9px] font-black uppercase text-green-500" }, "Total Versements"),
+                                h('p', { className: "text-[9px] font-black uppercase text-green-500" }, "Versements Reçus"),
                                 h('p', { className: "text-lg font-black" }, `${stats.ventes.toLocaleString()} Ar`)
                             ),
                             h('div', { className: "bg-white p-5 rounded-3xl border" },
@@ -235,58 +211,51 @@
                             )
                         ),
                         h('div', { className: "bg-white p-6 rounded-[2rem] border" },
-                            h('h3', { className: "text-[10px] font-black uppercase mb-4 text-slate-400" }, "Dernières Sorties"),
+                            h('h3', { className: "text-[10px] font-black uppercase mb-4 text-slate-400" }, "Historique Dépenses"),
+                            depenses.length === 0 ? h('p', {className: "text-center text-slate-300 text-[10px] py-4"}, "Aucune dépense") :
                             depenses.map(d => h('div', { key: d.id, className: "flex justify-between items-center p-3 mb-2 bg-slate-50 rounded-xl" },
                                 h('p', { className: "text-[10px] font-bold uppercase" }, d.titre),
-                                h('div', { className: "flex items-center gap-3" },
+                                h('div', { className: "flex items-center gap-2" },
                                     h('span', { className: "text-[11px] font-black text-rose-600" }, `-${(d.montant || 0).toLocaleString()} Ar`),
-                                    h('button', { onClick: () => deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'depenses', d.id)) }, h(Icon, { name: "trash", size: 12, className: "text-slate-300" }))
+                                    h('button', { onClick: () => deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'depenses', d.id)) }, h(Icon, { name: "trash", size: 10, className: "text-slate-300" }))
                                 )
                             ))
                         )
                     )
                 ),
 
-                // MODALE CLIENT (AVEC SOURCE FB/TK)
                 h(Modal, { isOpen: showModal === 'client', onClose: () => setShowModal(null), title: "Nouveau Client" },
                     h('div', { className: "space-y-4" },
-                        h('div', { className: "flex justify-center gap-4 mb-4" },
-                            h('button', { 
-                                onClick: () => setClientForm({...clientForm, source: 'Facebook'}), 
-                                className: `flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all ${clientForm.source === 'Facebook' ? 'source-btn-active' : 'border-slate-50 opacity-40'}` 
-                            }, h(Icon, { name: "facebook", size: 16 }), h('span', { className: "text-[9px] font-black uppercase" }, "FB")),
-                            h('button', { 
-                                onClick: () => setClientForm({...clientForm, source: 'TikTok'}), 
-                                className: `flex-1 flex items-center justify-center gap-2 p-3 rounded-xl border-2 transition-all ${clientForm.source === 'TikTok' ? 'source-btn-active-tk' : 'border-slate-50 opacity-40'}` 
-                            }, h(Icon, { name: "tiktok", size: 16 }), h('span', { className: "text-[9px] font-black uppercase" }, "TK"))
+                        h('div', { className: "flex gap-4 mb-4" },
+                            h('button', { onClick: () => setClientForm({...clientForm, source: 'Facebook'}), className: `flex-1 flex items-center justify-center gap-2 p-4 rounded-2xl border-2 ${clientForm.source === 'Facebook' ? 'source-btn-active' : 'border-slate-50 opacity-40'}` }, h(Icon, { name: "facebook", size: 20 }), h('span', { className: "text-[9px] font-black" }, "FB")),
+                            h('button', { onClick: () => setClientForm({...clientForm, source: 'TikTok'}), className: `flex-1 flex items-center justify-center gap-2 p-4 rounded-2xl border-2 ${clientForm.source === 'TikTok' ? 'source-btn-active-tk' : 'border-slate-50 opacity-40'}` }, h(Icon, { name: "tiktok", size: 20 }), h('span', { className: "text-[9px] font-black" }, "TK"))
                         ),
                         h('input', { value: clientForm.nom, onChange: e => setClientForm({...clientForm, nom: e.target.value}), placeholder: "Nom complet", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none" }),
-                        h('input', { value: clientForm.tel, onChange: e => setClientForm({...clientForm, tel: e.target.value}), placeholder: "Téléphone", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none" }),
-                        h('input', { value: clientForm.adresse, onChange: e => setClientForm({...clientForm, adresse: e.target.value}), placeholder: "Quartier", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none" }),
+                        h('input', { value: clientForm.tel, onChange: e => setClientForm({...clientForm, tel: e.target.value}), placeholder: "Tél", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none" }),
+                        h('input', { value: clientForm.adresse, onChange: e => setClientForm({...clientForm, adresse: e.target.value}), placeholder: "Adresse", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none" }),
                         h('button', {
                             onClick: async () => {
-                                if(!user || !clientForm.nom) return;
+                                if(!clientForm.nom) return;
                                 await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'clients'), { ...clientForm, timestamp: serverTimestamp() });
                                 setClientForm({ nom: "", tel: "", adresse: "", source: "Facebook" }); setShowModal(null);
                             },
                             className: "w-full bg-slate-900 text-white py-5 rounded-3xl font-black uppercase text-[10px]"
-                        }, "Ajouter au répertoire")
+                        }, "Enregistrer")
                     )
                 ),
 
-                // MODALE DEPENSE
-                h(Modal, { isOpen: showModal === 'depense', onClose: () => setShowModal(null), title: "Dépense Rapide" },
+                h(Modal, { isOpen: showModal === 'depense', onClose: () => setShowModal(null), title: "Dépense" },
                     h('div', { className: "space-y-4" },
-                        h('input', { value: depenseForm.titre, onChange: e => setDepenseForm({...depenseForm, titre: e.target.value}), placeholder: "Raison / Libellé", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none" }),
-                        h('input', { type: "number", value: depenseForm.montant, onChange: e => setDepenseForm({...depenseForm, montant: e.target.value}), placeholder: "Montant Ar", className: "w-full p-5 bg-slate-50 rounded-2xl font-black text-rose-600 text-2xl outline-none" }),
+                        h('input', { value: depenseForm.titre, onChange: e => setDepenseForm({...depenseForm, titre: e.target.value}), placeholder: "Motif", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none" }),
+                        h('input', { type: "number", value: depenseForm.montant, onChange: e => setDepenseForm({...depenseForm, montant: e.target.value}), placeholder: "Ar", className: "w-full p-5 bg-slate-50 rounded-2xl font-black text-rose-600 text-2xl outline-none" }),
                         h('button', {
                             onClick: async () => {
-                                if(!user || !depenseForm.titre) return;
-                                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'depenses'), { titre: depenseForm.titre, montant: Number(depenseForm.montant), timestamp: serverTimestamp() });
+                                if(!depenseForm.titre) return;
+                                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'depenses'), { ...depenseForm, montant: Number(depenseForm.montant), timestamp: serverTimestamp() });
                                 setDepenseForm({ titre: "", montant: "" }); setShowModal(null);
                             },
                             className: "w-full bg-rose-600 text-white py-5 rounded-3xl font-black uppercase text-[10px]"
-                        }, "Confirmer la sortie")
+                        }, "Confirmer")
                     )
                 )
             );
