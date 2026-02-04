@@ -1,570 +1,441 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { initializeApp } from 'firebase/app';
-import { 
-  getFirestore, 
-  collection, 
-  addDoc, 
-  onSnapshot, 
-  doc, 
-  updateDoc, 
-  deleteDoc, 
-  serverTimestamp 
-} from 'firebase/firestore';
-import { 
-  getAuth, 
-  signInAnonymously, 
-  signInWithCustomToken, 
-  onAuthStateChanged 
-} from 'firebase/auth';
-import { 
-  ShoppingCart, 
-  Truck, 
-  Users, 
-  Wallet, 
-  LogOut, 
-  Lock, 
-  Plus, 
-  Search, 
-  Trash2, 
-  ChevronRight, 
-  MapPin,
-  ArrowDownCircle,
-  ArrowUpCircle,
-  X,
-  Zap,
-  ArrowRight,
-  Loader2
-} from 'lucide-react';
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Rasoa Pro - Gestion Totale</title>
+    <!-- Tailwind CSS pour le style -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
+        body { font-family: 'Plus Jakarta Sans', sans-serif; }
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .animate-fade-in { animation: fadeIn 0.3s ease-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .tab-active { border-color: #4f46e5; color: #4f46e5; background-color: #f5f3ff; }
+    </style>
+</head>
+<body class="bg-[#F8FAFC]">
 
-// --- Configuration Firebase ---
-const firebaseConfig = JSON.parse(__firebase_config);
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'rasoa-pro-v1';
-
-// Composants Icones personnalisés pour les réseaux sociaux
-const FacebookIcon = ({ size = 20, className = "" }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z"/>
-  </svg>
-);
-
-const TikTokIcon = ({ size = 20, className = "" }) => (
-  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>
-    <path d="M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5" />
-  </svg>
-);
-
-export default function App() {
-  const [user, setUser] = useState(null);
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [password, setPassword] = useState('');
-  const [loginError, setLoginError] = useState(false);
-  const [activeTab, setActiveTab] = useState('vente');
-  const [authLoading, setAuthLoading] = useState(true);
-
-  // État des données
-  const [clients, setClients] = useState([]);
-  const [livraisons, setLivraisons] = useState([]);
-  const [versements, setVersements] = useState([]);
-  const [depenses, setDepenses] = useState([]);
-
-  // Formulaires
-  const [orderForm, setOrderForm] = useState({ nom: '', tel: '', lieu: '', montant: '', type: 'Produit', source: 'Facebook' });
-  const [clientForm, setClientForm] = useState({ nom: '', tel: '', lieu: '', source: 'Facebook' });
-  const [vMontant, setVMontant] = useState('');
-  const [dForm, setDForm] = useState({ motif: '', montant: '' });
-  const [searchTerm, setSearchTerm] = useState('');
-
-  // 1. Authentification
-  useEffect(() => {
-    const initAuth = async () => {
-      try {
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
-        } else {
-          await signInAnonymously(auth);
-        }
-      } catch (err) {
-        console.error("Auth Error:", err);
-      } finally {
-        setAuthLoading(false);
-      }
-    };
-    initAuth();
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-      if (localStorage.getItem('rasoa_session') === 'active') setIsLoggedIn(true);
-    });
-    return () => unsubscribe();
-  }, []);
-
-  // 2. Listeners Firestore
-  useEffect(() => {
-    if (!user) return;
-    const getColRef = (name) => collection(db, 'artifacts', appId, 'public', 'data', name);
-    const unsubscribers = [
-      onSnapshot(getColRef('livraisons'), (s) => setLivraisons(s.docs.map(d => ({ id: d.id, ...d.data() }))), (e) => console.error(e)),
-      onSnapshot(getColRef('clients'), (s) => setClients(s.docs.map(d => ({ id: d.id, ...d.data() }))), (e) => console.error(e)),
-      onSnapshot(getColRef('versements'), (s) => setVersements(s.docs.map(d => ({ id: d.id, ...d.data() }))), (e) => console.error(e)),
-      onSnapshot(getColRef('depenses'), (s) => setDepenses(s.docs.map(d => ({ id: d.id, ...d.data() }))), (e) => console.error(e))
-    ];
-    return () => unsubscribers.forEach(unsub => unsub());
-  }, [user]);
-
-  const handleLogin = (e) => {
-    if (e) e.preventDefault();
-    if (password === 'rasoa123') {
-      setIsLoggedIn(true);
-      setLoginError(false);
-      localStorage.setItem('rasoa_session', 'active');
-    } else {
-      setLoginError(true);
-      setPassword('');
-    }
-  };
-
-  const handleLogout = () => {
-    setIsLoggedIn(false);
-    localStorage.removeItem('rasoa_session');
-  };
-
-  const deleteItem = async (col, id) => {
-    if (!user) return;
-    try {
-      await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', col, id));
-    } catch (err) { console.error(err); }
-  };
-
-  const addOrder = async () => {
-    if (!user || !orderForm.nom || !orderForm.montant) return;
-    try {
-      await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'livraisons'), {
-        ...orderForm,
-        montant: Number(orderForm.montant),
-        statut: 'Préparation',
-        timestamp: serverTimestamp(),
-        date: new Date().toLocaleDateString('fr-FR'),
-        userId: user.uid
-      });
-      setOrderForm({ nom: '', tel: '', lieu: '', montant: '', type: 'Produit', source: 'Facebook' });
-      setActiveTab('livraisons');
-    } catch (err) { console.error(err); }
-  };
-
-  const updateStatus = async (id, current) => {
-    if (!user) return;
-    const next = current === 'Préparation' ? 'Livraison' : 'Livré';
-    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', id), { statut: next });
-  };
-
-  const addVersement = async () => {
-    if (!user || !vMontant) return;
-    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'versements'), {
-      montant: Number(vMontant),
-      timestamp: serverTimestamp(),
-      date: new Date().toLocaleDateString('fr-FR'),
-      userId: user.uid
-    });
-    setVMontant('');
-  };
-
-  const addDepense = async () => {
-    if (!user || !dForm.motif || !dForm.montant) return;
-    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'depenses'), {
-      ...dForm,
-      montant: Number(dForm.montant),
-      timestamp: serverTimestamp(),
-      date: new Date().toLocaleDateString('fr-FR'),
-      userId: user.uid
-    });
-    setDForm({ motif: '', montant: '' });
-  };
-
-  const addClient = async () => {
-    if (!user || !clientForm.nom) return;
-    try {
-      await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'clients'), { 
-        ...clientForm, 
-        telephone: clientForm.tel,
-        createdAt: serverTimestamp() 
-      });
-      setClientForm({ nom: '', tel: '', lieu: '', source: 'Facebook' });
-    } catch (err) { console.error(err); }
-  };
-
-  const stats = useMemo(() => {
-    const totalLivre = livraisons.filter(l => l.statut === "Livré").reduce((acc, c) => acc + (Number(c.montant) || 0), 0);
-    const totalVer = versements.reduce((acc, c) => acc + (Number(c.montant) || 0), 0);
-    const totalDep = depenses.reduce((acc, c) => acc + (Number(c.montant) || 0), 0);
-    return { totalLivre, totalVer, totalDep, solde: totalVer - totalDep };
-  }, [livraisons, versements, depenses]);
-
-  const filteredClientsSearch = useMemo(() => {
-    if (!searchTerm) return [];
-    return clients.filter(c => 
-      c.nom?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-      c.tel?.includes(searchTerm) ||
-      c.telephone?.includes(searchTerm)
-    );
-  }, [searchTerm, clients]);
-
-  if (authLoading) return <div className="h-screen flex items-center justify-center bg-slate-50"><Loader2 className="animate-spin text-indigo-600" size={40} /></div>;
-
-  if (!isLoggedIn) {
-    return (
-      <div className="fixed inset-0 bg-[#0f172a] flex items-center justify-center p-4">
-        <div className="bg-white p-8 rounded-[2.5rem] w-full max-w-sm text-center shadow-2xl">
-          <div className="bg-indigo-50 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-8 text-indigo-600 rotate-3">
-            <Lock size={36} />
-          </div>
-          <h1 className="text-3xl font-black mb-2 uppercase tracking-tighter text-slate-900">Rasoa Pro</h1>
-          <p className="text-slate-400 text-sm mb-8 font-bold uppercase tracking-widest">Espace Sécurisé</p>
-          <form onSubmit={handleLogin} className="space-y-4">
-            <input 
-              type="password" 
-              autoFocus
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="Code d'accès" 
-              className="w-full p-5 bg-slate-50 border-2 border-transparent focus:border-indigo-500 rounded-2xl text-center font-black text-xl outline-none transition-all"
-            />
-            <button type="submit" className="w-full bg-indigo-600 text-white font-black py-5 rounded-2xl hover:bg-indigo-700 transition-all shadow-xl shadow-indigo-100 flex items-center justify-center gap-3">
-              <span>ENTRER</span>
-              <ArrowRight size={20} />
-            </button>
-          </form>
-          {loginError && <div className="mt-6 p-3 bg-rose-50 text-rose-600 text-xs font-black rounded-xl uppercase tracking-wider">Accès refusé</div>}
+    <div id="app">
+        <!-- Écran de Chargement -->
+        <div id="loader" class="fixed inset-0 bg-white flex flex-col items-center justify-center z-[200]">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-4 border-indigo-600 mb-4"></div>
+            <p class="font-black text-indigo-600 uppercase tracking-widest text-[10px]">Chargement des données...</p>
         </div>
-      </div>
-    );
-  }
 
-  return (
-    <div className="bg-[#F8FAFC] min-h-screen pb-24 font-sans">
-      <nav className="bg-white/80 backdrop-blur-md border-b px-6 h-20 flex items-center justify-between sticky top-0 z-50">
-        <div className="flex items-center gap-3 font-black text-2xl tracking-tighter uppercase text-slate-900">
-          <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg shadow-indigo-200">
-            <Zap size={22} fill="currentColor" />
-          </div>
-          RASOA <span className="text-indigo-600">PRO</span>
+        <!-- Authentification -->
+        <div id="login-screen" class="hidden fixed inset-0 bg-[#0f172a] flex items-center justify-center p-4 z-[100]">
+            <div class="bg-white p-8 rounded-[2.5rem] w-full max-w-sm text-center shadow-2xl">
+                <div class="bg-indigo-50 w-20 h-20 rounded-3xl flex items-center justify-center mx-auto mb-8 text-indigo-600 rotate-3 text-3xl">🔒</div>
+                <h1 class="text-3xl font-black mb-2 uppercase tracking-tighter text-slate-900">Rasoa Pro</h1>
+                <p class="text-slate-400 text-xs mb-8 font-bold uppercase tracking-widest">Accès Administration</p>
+                <form id="loginForm" class="space-y-4">
+                    <input type="password" id="passwordInput" placeholder="Code secret" 
+                        class="w-full p-5 bg-slate-50 border-2 border-transparent focus:border-indigo-500 rounded-2xl text-center font-black text-xl outline-none transition-all">
+                    <button type="submit" class="w-full bg-indigo-600 text-white font-black py-5 rounded-2xl hover:bg-indigo-700 transition-all shadow-xl uppercase tracking-widest">Entrer</button>
+                </form>
+                <p id="loginError" class="hidden mt-6 p-3 bg-rose-50 text-rose-600 text-[10px] font-black rounded-xl uppercase">Code incorrect</p>
+            </div>
         </div>
-        <button onClick={handleLogout} className="text-slate-400 font-bold text-sm flex items-center gap-2 px-5 py-2.5 rounded-xl hover:bg-rose-50 hover:text-rose-500 transition-all">
-          <LogOut size={18} /> Déconnexion
-        </button>
-      </nav>
 
-      {/* Navigation */}
-      <div className="bg-white border-b overflow-x-auto sticky top-20 z-40 no-scrollbar">
-        <div className="max-w-5xl mx-auto px-4 flex">
-          {[
-            { id: 'vente', label: 'Vente', icon: ShoppingCart },
-            { id: 'livraisons', label: 'Livraisons', icon: Truck },
-            { id: 'finances', label: 'Finances', icon: Wallet },
-            { id: 'clients', label: 'Clients', icon: Users },
-          ].map(tab => (
-            <button 
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`px-8 py-5 flex items-center gap-2 border-b-4 font-black text-sm whitespace-nowrap transition-all ${
-                activeTab === tab.id ? 'border-indigo-600 text-indigo-600 bg-indigo-50/50' : 'border-transparent text-slate-400 hover:text-slate-600'
-              }`}
-            >
-              <tab.icon size={18} /> {tab.label}
-            </button>
-          ))}
+        <!-- Interface Principale -->
+        <div id="main-interface" class="hidden min-h-screen flex flex-col">
+            <!-- Header -->
+            <nav class="bg-white/80 backdrop-blur-md border-b px-6 h-20 flex items-center justify-between sticky top-0 z-50">
+                <div class="flex items-center gap-3 font-black text-2xl tracking-tighter uppercase text-slate-900">
+                    <div class="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-lg">⚡</div>
+                    RASOA <span class="text-indigo-600">PRO</span>
+                </div>
+                <button id="logoutBtn" class="text-slate-400 font-bold text-xs flex items-center gap-2 px-5 py-2.5 rounded-xl hover:bg-rose-50 hover:text-rose-500 transition-all uppercase tracking-widest">Déconnexion</button>
+            </nav>
+
+            <!-- Tabs -->
+            <div class="bg-white border-b overflow-x-auto sticky top-20 z-40 no-scrollbar">
+                <div class="max-w-5xl mx-auto px-4 flex" id="tabs-container">
+                    <button onclick="appState.setTab('vente')" id="tab-vente" class="px-8 py-5 flex items-center gap-2 border-b-4 font-black text-sm whitespace-nowrap transition-all border-transparent text-slate-400">🛒 Vente</button>
+                    <button onclick="appState.setTab('livraisons')" id="tab-livraisons" class="px-8 py-5 flex items-center gap-2 border-b-4 font-black text-sm whitespace-nowrap transition-all border-transparent text-slate-400">🚚 Livraisons</button>
+                    <button onclick="appState.setTab('finances')" id="tab-finances" class="px-8 py-5 flex items-center gap-2 border-b-4 font-black text-sm whitespace-nowrap transition-all border-transparent text-slate-400">💰 Finances</button>
+                    <button onclick="appState.setTab('clients')" id="tab-clients" class="px-8 py-5 flex items-center gap-2 border-b-4 font-black text-sm whitespace-nowrap transition-all border-transparent text-slate-400">👥 Clients</button>
+                </div>
+            </div>
+
+            <!-- Content -->
+            <main class="max-w-5xl mx-auto p-4 md:p-8 flex-1 w-full" id="content-area">
+                <!-- Les vues sont injectées ici via JS -->
+            </main>
         </div>
-      </div>
-
-      <main className="max-w-5xl mx-auto p-4 md:p-8">
-        
-        {activeTab === 'vente' && (
-          <div className="max-w-2xl mx-auto bg-white rounded-[3rem] p-8 md:p-12 shadow-2xl shadow-indigo-100/50 border border-white space-y-8">
-            <div className="text-center space-y-2">
-               <h2 className="text-2xl font-black uppercase text-slate-900 tracking-tight">Nouvelle Transaction</h2>
-               <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Enregistrement Rapide</p>
-            </div>
-            
-            <div className="relative">
-              <div className="relative">
-                <Search className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" size={22} />
-                <input 
-                  type="text" 
-                  placeholder="Rechercher un client..." 
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full p-5 pl-14 bg-slate-50 rounded-[2rem] border-2 border-transparent outline-none focus:bg-white focus:border-indigo-500 transition-all font-medium"
-                />
-              </div>
-              {filteredClientsSearch.length > 0 && (
-                <div className="absolute z-10 w-full mt-3 bg-white border rounded-[2rem] shadow-2xl max-h-72 overflow-hidden border-slate-100">
-                  {filteredClientsSearch.map(c => (
-                    <div 
-                      key={c.id} 
-                      onClick={() => { setOrderForm({...orderForm, nom: c.nom, tel: c.telephone || c.tel, lieu: c.lieu || '', source: c.source || 'Facebook'}); setSearchTerm(''); }}
-                      className="p-5 hover:bg-indigo-50 cursor-pointer border-b border-slate-50 last:border-none flex justify-between items-center transition-colors"
-                    >
-                      <div>
-                        <div className="font-black text-slate-800">{c.nom}</div>
-                        <div className="text-[10px] font-bold text-indigo-400 uppercase flex items-center gap-2">
-                          {c.source === 'TikTok' ? <TikTokIcon size={12} className="text-rose-500" /> : <FacebookIcon size={12} className="text-indigo-600" />}
-                          {c.telephone || c.tel}
-                        </div>
-                      </div>
-                      <Plus size={20} className="text-indigo-600 bg-indigo-100 rounded-lg p-1" />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-6 border-t border-slate-50">
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase ml-4">Nom complet</label>
-                <input value={orderForm.nom} onChange={e => setOrderForm({...orderForm, nom: e.target.value})} type="text" placeholder="Ex: Jean Rakoto" className="w-full p-5 bg-slate-50 rounded-2xl font-bold text-slate-800" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase ml-4">Téléphone</label>
-                <input value={orderForm.tel} onChange={e => setOrderForm({...orderForm, tel: e.target.value})} type="text" placeholder="034..." className="w-full p-5 bg-slate-50 rounded-2xl font-mono font-bold" />
-              </div>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase ml-4">Lieu de livraison</label>
-                <input value={orderForm.lieu} onChange={e => setOrderForm({...orderForm, lieu: e.target.value})} type="text" placeholder="Quartier, lot..." className="w-full p-5 bg-slate-50 rounded-2xl font-medium" />
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase ml-4">Provenance</label>
-                <div className="flex bg-slate-50 rounded-2xl p-1 gap-1">
-                  <button 
-                    onClick={() => setOrderForm({...orderForm, source: 'Facebook'})}
-                    className={`flex-1 flex items-center justify-center py-4 rounded-xl transition-all ${orderForm.source === 'Facebook' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}`}
-                  >
-                    <FacebookIcon size={20} />
-                  </button>
-                  <button 
-                    onClick={() => setOrderForm({...orderForm, source: 'TikTok'})}
-                    className={`flex-1 flex items-center justify-center py-4 rounded-xl transition-all ${orderForm.source === 'TikTok' ? 'bg-white shadow-sm text-rose-500' : 'text-slate-400'}`}
-                  >
-                    <TikTokIcon size={20} />
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-5">
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-indigo-500 uppercase ml-4">Montant Total</label>
-                <div className="relative">
-                  <input value={orderForm.montant} onChange={e => setOrderForm({...orderForm, montant: e.target.value})} type="number" placeholder="0" className="w-full p-5 bg-indigo-50/50 rounded-2xl font-black text-2xl text-indigo-600 outline-none focus:ring-2 focus:ring-indigo-500" />
-                  <span className="absolute right-5 top-1/2 -translate-y-1/2 font-black text-indigo-300">AR</span>
-                </div>
-              </div>
-              <div className="space-y-1">
-                <label className="text-[10px] font-black text-slate-400 uppercase ml-4">Type</label>
-                <select value={orderForm.type} onChange={e => setOrderForm({...orderForm, type: e.target.value})} className="w-full p-6 bg-slate-50 rounded-2xl border-none font-black text-slate-700 appearance-none">
-                  <option value="Produit">📦 Produit Seul</option>
-                  <option value="Colis">🎁 Pack Complet</option>
-                </select>
-              </div>
-            </div>
-
-            <button onClick={addOrder} className="w-full bg-indigo-600 text-white py-6 rounded-[2rem] font-black uppercase tracking-widest shadow-2xl shadow-indigo-200 hover:bg-indigo-700 hover:-translate-y-1 transition-all active:scale-95">
-              Enregistrer la vente
-            </button>
-          </div>
-        )}
-
-        {activeTab === 'livraisons' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {livraisons.length === 0 && <div className="col-span-full py-32 text-center text-slate-200 font-black text-4xl uppercase opacity-20">Vide</div>}
-            {livraisons.sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)).map(l => (
-              <div key={l.id} className="bg-white rounded-[2.5rem] shadow-xl overflow-hidden flex flex-col border border-white hover:shadow-2xl transition-all">
-                <div className={`py-3 text-[10px] font-black uppercase text-center tracking-widest flex items-center justify-center gap-2 ${
-                  l.statut === 'Livré' ? 'bg-emerald-500 text-white' : l.statut === 'Livraison' ? 'bg-blue-500 text-white' : 'bg-amber-400 text-white'
-                }`}>
-                  {l.source === 'TikTok' ? <TikTokIcon size={12} /> : <FacebookIcon size={12} />}
-                  {l.statut}
-                </div>
-                <div className="p-8 space-y-6">
-                  <div className="flex justify-between items-start">
-                    <div className="space-y-1">
-                        <h3 className="font-black text-xl text-slate-900 leading-tight">{l.nom}</h3>
-                        <div className="flex items-center gap-2">
-                           <span className="px-2 py-0.5 bg-slate-100 text-slate-500 text-[9px] font-black rounded uppercase">{l.type}</span>
-                           <span className="text-[10px] font-bold text-slate-300">{l.date}</span>
-                        </div>
-                    </div>
-                    <button onClick={() => deleteItem('livraisons', l.id)} className="text-slate-100 hover:text-rose-500 transition-colors p-2 hover:bg-rose-50 rounded-xl"><Trash2 size={20} /></button>
-                  </div>
-                  <div className="text-sm text-slate-500 flex items-start gap-2 bg-slate-50 p-4 rounded-2xl italic">
-                    <MapPin size={16} className="text-indigo-400 mt-0.5 flex-shrink-0" /> {l.lieu || 'Adresse non précisée'}
-                  </div>
-                  <div className="pt-4 border-t border-slate-50 flex justify-between items-center">
-                    <div className="font-black text-2xl text-slate-900 tracking-tighter">{(Number(l.montant) || 0).toLocaleString()} <span className="text-xs text-slate-400 ml-1">AR</span></div>
-                    {l.statut !== 'Livré' && (
-                      <button onClick={() => updateStatus(l.id, l.statut)} className="bg-slate-900 text-white p-3 rounded-2xl hover:bg-indigo-600 transition-all shadow-lg active:scale-90">
-                        <ChevronRight size={24} />
-                      </button>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {activeTab === 'finances' && (
-          <div className="space-y-10">
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
-              <div className="bg-white p-8 rounded-[2.5rem] shadow-xl">
-                <div className="text-[10px] font-black uppercase text-slate-400 mb-2 tracking-widest">C.A Livré</div>
-                <div className="text-3xl font-black text-slate-900">{stats.totalLivre.toLocaleString()} Ar</div>
-              </div>
-              <div className="bg-emerald-500 p-8 rounded-[2.5rem] text-white shadow-xl">
-                <div className="text-[10px] font-black uppercase opacity-70 mb-2 tracking-widest">Encaissé</div>
-                <div className="text-3xl font-black">{stats.totalVer.toLocaleString()} Ar</div>
-              </div>
-              <div className="bg-white p-8 rounded-[2.5rem] shadow-xl">
-                <div className="text-[10px] font-black uppercase text-rose-500 mb-2 tracking-widest">Dépenses</div>
-                <div className="text-3xl font-black text-rose-600">{stats.totalDep.toLocaleString()} Ar</div>
-              </div>
-              <div className={`p-8 rounded-[2.5rem] text-white shadow-2xl ${stats.solde >= 0 ? 'bg-indigo-600' : 'bg-rose-600'}`}>
-                <div className="text-[10px] font-black uppercase opacity-70 mb-2 tracking-widest">Solde Net</div>
-                <div className="text-3xl font-black">{stats.solde.toLocaleString()} Ar</div>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-10">
-              <div className="bg-white rounded-[3rem] shadow-xl p-8 space-y-6">
-                <h3 className="font-black uppercase text-sm flex items-center gap-3 text-emerald-600 tracking-widest">
-                  <ArrowDownCircle size={20} /> Versement Recette
-                </h3>
-                <div className="flex gap-3">
-                  <input value={vMontant} onChange={e => setVMontant(e.target.value)} type="number" placeholder="Montant..." className="flex-1 p-5 bg-slate-50 rounded-2xl font-black text-xl outline-none" />
-                  <button onClick={addVersement} className="bg-emerald-600 text-white px-8 rounded-2xl font-black">OK</button>
-                </div>
-                <div className="space-y-3 mt-8 max-h-80 overflow-y-auto pr-2 no-scrollbar">
-                  {versements.sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)).map(v => (
-                    <div key={v.id} className="flex justify-between items-center p-4 bg-slate-50 rounded-2xl border border-white">
-                      <span className="text-[10px] font-bold text-slate-400 uppercase">{v.date}</span>
-                      <div className="flex items-center gap-5">
-                        <span className="font-black text-emerald-600">{(Number(v.montant) || 0).toLocaleString()} Ar</span>
-                        <button onClick={() => deleteItem('versements', v.id)} className="text-slate-200 hover:text-rose-500"><X size={18} /></button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <div className="bg-white rounded-[3rem] shadow-xl p-8 space-y-6">
-                <h3 className="font-black uppercase text-sm flex items-center gap-3 text-rose-600 tracking-widest">
-                  <ArrowUpCircle size={20} /> Sortie de Caisse
-                </h3>
-                <div className="space-y-4">
-                  <input value={dForm.motif} onChange={e => setDForm({...dForm, motif: e.target.value})} type="text" placeholder="Motif..." className="w-full p-5 bg-slate-50 rounded-2xl font-bold" />
-                  <div className="flex gap-3">
-                    <input value={dForm.montant} onChange={e => setDForm({...dForm, montant: e.target.value})} type="number" placeholder="Montant..." className="flex-1 p-5 bg-slate-50 rounded-2xl font-black text-xl outline-none" />
-                    <button onClick={addDepense} className="bg-rose-600 text-white px-8 rounded-2xl font-black">OK</button>
-                  </div>
-                </div>
-                <div className="space-y-3 mt-8 max-h-80 overflow-y-auto pr-2 no-scrollbar">
-                  {depenses.sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)).map(d => (
-                    <div key={d.id} className="p-4 bg-slate-50 rounded-2xl border border-white flex justify-between">
-                      <div>
-                        <div className="font-black text-slate-800 text-sm">{d.motif}</div>
-                        <div className="text-[9px] font-bold text-slate-300 uppercase">{d.date}</div>
-                      </div>
-                      <div className="flex items-center gap-5">
-                        <span className="font-black text-rose-600">{(Number(d.montant) || 0).toLocaleString()} Ar</span>
-                        <button onClick={() => deleteItem('depenses', d.id)} className="text-slate-200 hover:text-rose-500"><X size={18} /></button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'clients' && (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
-            <div className="lg:col-span-1">
-              <div className="bg-white rounded-[3rem] p-10 shadow-2xl sticky top-44">
-                <h3 className="font-black uppercase mb-8 flex items-center gap-3 text-indigo-600">
-                   Nouveau Client
-                </h3>
-                <div className="space-y-5">
-                  <input value={clientForm.nom} onChange={e => setClientForm({...clientForm, nom: e.target.value})} type="text" placeholder="Nom Complet" className="w-full p-5 bg-slate-50 rounded-2xl font-bold" />
-                  <input value={clientForm.tel} onChange={e => setClientForm({...clientForm, tel: e.target.value})} type="text" placeholder="Téléphone" className="w-full p-5 bg-slate-50 rounded-2xl font-mono" />
-                  <input value={clientForm.lieu} onChange={e => setClientForm({...clientForm, lieu: e.target.value})} type="text" placeholder="Lieu" className="w-full p-5 bg-slate-50 rounded-2xl" />
-                  
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-black text-slate-400 uppercase ml-4">Provenance</label>
-                    <div className="flex bg-slate-50 rounded-2xl p-1 gap-1">
-                      <button 
-                        onClick={() => setClientForm({...clientForm, source: 'Facebook'})}
-                        className={`flex-1 flex items-center justify-center py-4 rounded-xl transition-all ${clientForm.source === 'Facebook' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}`}
-                      >
-                        <FacebookIcon size={20} />
-                      </button>
-                      <button 
-                        onClick={() => setClientForm({...clientForm, source: 'TikTok'})}
-                        className={`flex-1 flex items-center justify-center py-4 rounded-xl transition-all ${clientForm.source === 'TikTok' ? 'bg-white shadow-sm text-rose-500' : 'text-slate-400'}`}
-                      >
-                        <TikTokIcon size={20} />
-                      </button>
-                    </div>
-                  </div>
-
-                  <button onClick={addClient} className="w-full bg-slate-900 text-white py-5 rounded-2xl font-black uppercase tracking-widest hover:bg-indigo-600 transition-all">Ajouter</button>
-                </div>
-              </div>
-            </div>
-            <div className="lg:col-span-2 bg-white rounded-[3rem] shadow-xl overflow-hidden h-fit">
-              <div className="p-8 border-b bg-slate-50/50">
-                <h3 className="font-black uppercase text-sm text-slate-400">Répertoire ({clients.length})</h3>
-              </div>
-              <table className="w-full text-left">
-                <thead className="text-[10px] uppercase text-slate-300 font-black border-b">
-                  <tr>
-                    <th className="px-8 py-5">Source</th>
-                    <th className="px-8 py-5">Nom</th>
-                    <th className="px-8 py-5">Contact</th>
-                    <th className="px-8 py-5 text-right">Action</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {clients.sort((a,b) => (a.nom || "").localeCompare(b.nom || "")).map(c => (
-                    <tr key={c.id} className="hover:bg-indigo-50/30">
-                      <td className="px-8 py-6">
-                        {c.source === 'TikTok' ? 
-                          <div className="bg-rose-50 text-rose-500 w-10 h-10 rounded-xl flex items-center justify-center shadow-sm">
-                            <TikTokIcon size={18} />
-                          </div> : 
-                          <div className="bg-indigo-50 text-indigo-600 w-10 h-10 rounded-xl flex items-center justify-center shadow-sm">
-                            <FacebookIcon size={18} />
-                          </div>
-                        }
-                      </td>
-                      <td className="px-8 py-6">
-                         <div className="font-black text-slate-800">{c.nom}</div>
-                         <div className="text-[10px] text-slate-400 font-bold uppercase">{c.lieu || 'Zone non définie'}</div>
-                      </td>
-                      <td className="px-8 py-6 font-mono text-indigo-600 font-black">{c.telephone || c.tel}</td>
-                      <td className="px-8 py-6 text-right">
-                        <button onClick={() => deleteItem('clients', c.id)} className="text-slate-100 hover:text-rose-500 p-3"><Trash2 size={20} /></button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
-      </main>
     </div>
-  );
-}
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+
+        // Initialisation Firebase
+        const firebaseConfig = JSON.parse(__firebase_config);
+        const app = initializeApp(firebaseConfig);
+        const auth = getAuth(app);
+        const db = getFirestore(app);
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'rasoa-pro-v2';
+
+        // --- GESTION DE L'ÉTAT (Application State) ---
+        window.appState = {
+            user: null,
+            activeTab: 'vente',
+            data: { livraisons: [], clients: [], versements: [], depenses: [] },
+            searchTerm: '',
+
+            setTab(tab) {
+                this.activeTab = tab;
+                this.render();
+            },
+
+            async deleteItem(colName, id) {
+                if(confirm('Supprimer cet élément définitivement ?')) {
+                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', colName, id));
+                }
+            },
+
+            async updateStatut(id, current) {
+                const map = { 'Préparation': 'Livraison', 'Livraison': 'Livré' };
+                if (map[current]) {
+                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', id), { statut: map[current] });
+                }
+            },
+
+            render() {
+                // Mise à jour visuelle des onglets
+                ['vente', 'livraisons', 'finances', 'clients'].forEach(t => {
+                    const el = document.getElementById(`tab-${t}`);
+                    if (t === this.activeTab) el.classList.add('tab-active');
+                    else el.classList.remove('tab-active');
+                });
+
+                const container = document.getElementById('content-area');
+                container.innerHTML = `<div class="animate-fade-in">${this.getTemplate()}</div>`;
+                this.bindEvents();
+            },
+
+            getTemplate() {
+                switch(this.activeTab) {
+                    case 'vente': return this.templateVente();
+                    case 'livraisons': return this.templateLivraisons();
+                    case 'finances': return this.templateFinances();
+                    case 'clients': return this.templateClients();
+                    default: return '';
+                }
+            },
+
+            templateVente() {
+                return `
+                    <div class="max-w-2xl mx-auto bg-white rounded-[3rem] p-8 md:p-12 shadow-2xl border border-white space-y-8">
+                        <div class="text-center">
+                            <h2 class="text-2xl font-black uppercase text-slate-900 tracking-tight">Nouvelle Transaction</h2>
+                            <p class="text-slate-400 text-[10px] font-black uppercase tracking-widest mt-2">Vente & Expédition</p>
+                        </div>
+                        <div class="relative">
+                            <input type="text" id="clientSearch" placeholder="Rechercher un client..." class="w-full p-5 pl-12 bg-slate-50 rounded-[2rem] border-2 border-transparent outline-none focus:bg-white focus:border-indigo-500 transition-all font-medium">
+                            <div id="searchDropdown" class="hidden absolute z-10 w-full mt-3 bg-white border rounded-[2rem] shadow-2xl max-h-60 overflow-y-auto no-scrollbar"></div>
+                        </div>
+                        <form id="venteForm" class="space-y-6">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-5 pt-6 border-t">
+                                <input name="nom" required placeholder="Nom du client" class="p-5 bg-slate-50 rounded-2xl font-bold border-none outline-none focus:ring-2 ring-indigo-500/20">
+                                <input name="tel" placeholder="Téléphone" class="p-5 bg-slate-50 rounded-2xl font-mono font-bold border-none outline-none focus:ring-2 ring-indigo-500/20">
+                            </div>
+                            <input name="lieu" placeholder="Adresse / Lieu de livraison" class="w-full p-5 bg-slate-50 rounded-2xl border-none outline-none focus:ring-2 ring-indigo-500/20">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-5">
+                                <div class="flex bg-slate-50 rounded-2xl p-1 gap-1">
+                                    <label class="flex-1 cursor-pointer"><input type="radio" name="source" value="Facebook" checked class="hidden peer"><div class="py-4 rounded-xl text-center peer-checked:bg-white peer-checked:text-indigo-600 text-slate-400 font-bold transition-all text-xs">FACEBOOK</div></label>
+                                    <label class="flex-1 cursor-pointer"><input type="radio" name="source" value="TikTok" class="hidden peer"><div class="py-4 rounded-xl text-center peer-checked:bg-white peer-checked:text-rose-500 text-slate-400 font-bold transition-all text-xs">TIKTOK</div></label>
+                                </div>
+                                <select name="type" class="p-5 bg-slate-50 rounded-2xl font-black border-none outline-none">
+                                    <option value="Produit">📦 Produit Unité</option>
+                                    <option value="Colis">🎁 Pack / Colis</option>
+                                </select>
+                            </div>
+                            <div class="relative">
+                                <input name="montant" type="number" required placeholder="Montant" class="w-full p-6 bg-indigo-50 rounded-3xl font-black text-3xl text-indigo-600 outline-none">
+                                <span class="absolute right-8 top-1/2 -translate-y-1/2 font-black text-indigo-300">AR</span>
+                            </div>
+                            <button type="submit" class="w-full bg-indigo-600 text-white py-6 rounded-[2rem] font-black uppercase tracking-widest shadow-2xl hover:bg-indigo-700 transition-all active:scale-95">Valider la Vente</button>
+                        </form>
+                    </div>`;
+            },
+
+            templateLivraisons() {
+                const list = [...this.data.livraisons].sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+                return `
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                        ${list.map(l => `
+                            <div class="bg-white rounded-[2.5rem] shadow-xl overflow-hidden flex flex-col border border-white hover:shadow-2xl transition-all">
+                                <div class="py-3 text-[10px] font-black uppercase text-center tracking-widest text-white ${l.statut === 'Livré' ? 'bg-emerald-500' : l.statut === 'Livraison' ? 'bg-blue-500' : 'bg-amber-400'}">
+                                    ${l.source === 'TikTok' ? '🎵' : '🔵'} ${l.statut}
+                                </div>
+                                <div class="p-8 space-y-4">
+                                    <div class="flex justify-between items-start">
+                                        <div>
+                                            <h3 class="font-black text-xl text-slate-900">${l.nom}</h3>
+                                            <div class="text-[10px] font-bold text-slate-300 uppercase">${l.date} • ${l.type}</div>
+                                        </div>
+                                        <button onclick="appState.deleteItem('livraisons', '${l.id}')" class="text-slate-100 hover:text-rose-500 p-2">✕</button>
+                                    </div>
+                                    <div class="text-sm text-slate-500 bg-slate-50 p-4 rounded-2xl italic">📍 ${l.lieu || 'Non précisé'}</div>
+                                    <div class="pt-4 border-t flex justify-between items-center">
+                                        <div class="font-black text-2xl">${(l.montant || 0).toLocaleString()} <span class="text-xs text-slate-400 ml-1 font-bold">AR</span></div>
+                                        ${l.statut !== 'Livré' ? `<button onclick="appState.updateStatut('${l.id}', '${l.statut}')" class="bg-slate-900 text-white p-3 px-5 rounded-2xl font-black hover:bg-indigo-600 transition-colors">➔</button>` : '✅'}
+                                    </div>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>`;
+            },
+
+            templateFinances() {
+                const totalLivre = this.data.livraisons.filter(l => l.statut === 'Livré').reduce((a,c) => a + (c.montant || 0), 0);
+                const totalVer = this.data.versements.reduce((a,c) => a + (c.montant || 0), 0);
+                const totalDep = this.data.depenses.reduce((a,c) => a + (c.montant || 0), 0);
+                const solde = totalVer - totalDep;
+
+                return `
+                    <div class="space-y-10">
+                        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+                            <div class="bg-white p-8 rounded-[2.5rem] shadow-xl border border-white">
+                                <div class="text-[10px] font-black uppercase text-slate-400 mb-2">C.A Livré</div>
+                                <div class="text-2xl font-black">${totalLivre.toLocaleString()} Ar</div>
+                            </div>
+                            <div class="bg-emerald-500 p-8 rounded-[2.5rem] text-white shadow-xl">
+                                <div class="text-[10px] font-black uppercase opacity-70 mb-2">Total Encaissé</div>
+                                <div class="text-2xl font-black">${totalVer.toLocaleString()} Ar</div>
+                            </div>
+                            <div class="bg-white p-8 rounded-[2.5rem] shadow-xl border border-white">
+                                <div class="text-[10px] font-black uppercase text-rose-500 mb-2">Total Dépenses</div>
+                                <div class="text-2xl font-black text-rose-600">${totalDep.toLocaleString()} Ar</div>
+                            </div>
+                            <div class="p-8 rounded-[2.5rem] text-white shadow-2xl ${solde >= 0 ? 'bg-indigo-600' : 'bg-rose-600'}">
+                                <div class="text-[10px] font-black uppercase opacity-70 mb-2">Solde Caisse</div>
+                                <div class="text-2xl font-black">${solde.toLocaleString()} Ar</div>
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 lg:grid-cols-2 gap-10">
+                            <div class="bg-white rounded-[3rem] p-8 shadow-xl border border-white space-y-6">
+                                <h3 class="font-black uppercase text-emerald-600 text-sm tracking-widest flex items-center gap-2">📥 Ajouter Recette</h3>
+                                <div class="flex gap-3">
+                                    <input id="vMnt" type="number" placeholder="Montant..." class="flex-1 p-5 bg-slate-50 rounded-2xl font-black outline-none border-none">
+                                    <button id="addVersementBtn" class="bg-emerald-600 text-white px-8 rounded-2xl font-black">OK</button>
+                                </div>
+                                <div class="space-y-3 max-h-60 overflow-y-auto no-scrollbar">
+                                    ${this.data.versements.map(v => `<div class="p-4 bg-slate-50 rounded-2xl flex justify-between">
+                                        <span class="text-[10px] font-bold text-slate-400 uppercase">${v.date}</span>
+                                        <div class="flex gap-4">
+                                            <span class="font-black text-emerald-600">${v.montant.toLocaleString()} Ar</span>
+                                            <button onclick="appState.deleteItem('versements', '${v.id}')" class="text-slate-200 hover:text-rose-500">✕</button>
+                                        </div>
+                                    </div>`).join('')}
+                                </div>
+                            </div>
+                            <div class="bg-white rounded-[3rem] p-8 shadow-xl border border-white space-y-6">
+                                <h3 class="font-black uppercase text-rose-600 text-sm tracking-widest flex items-center gap-2">📤 Sortie de Caisse</h3>
+                                <div class="space-y-3">
+                                    <input id="dMotif" placeholder="Motif..." class="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none outline-none">
+                                    <div class="flex gap-3">
+                                        <input id="dMnt" type="number" placeholder="Montant..." class="flex-1 p-5 bg-slate-50 rounded-2xl font-black outline-none border-none">
+                                        <button id="addDepenseBtn" class="bg-rose-600 text-white px-8 rounded-2xl font-black">OK</button>
+                                    </div>
+                                </div>
+                                <div class="space-y-3 max-h-60 overflow-y-auto no-scrollbar">
+                                    ${this.data.depenses.map(d => `<div class="p-4 bg-slate-50 rounded-2xl flex justify-between">
+                                        <div>
+                                            <div class="font-black text-sm">${d.motif}</div>
+                                            <div class="text-[9px] text-slate-300 font-bold uppercase">${d.date}</div>
+                                        </div>
+                                        <div class="flex gap-4 items-center">
+                                            <span class="font-black text-rose-600">${d.montant.toLocaleString()} Ar</span>
+                                            <button onclick="appState.deleteItem('depenses', '${d.id}')" class="text-slate-200 hover:text-rose-500">✕</button>
+                                        </div>
+                                    </div>`).join('')}
+                                </div>
+                            </div>
+                        </div>
+                    </div>`;
+            },
+
+            templateClients() {
+                return `
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-10">
+                        <div class="lg:col-span-1">
+                            <div class="bg-white rounded-[3rem] p-10 shadow-xl border border-white sticky top-44">
+                                <h3 class="font-black uppercase mb-8 text-indigo-600 tracking-widest text-sm text-center">Nouveau Client</h3>
+                                <form id="clientForm" class="space-y-5">
+                                    <input name="nom" required placeholder="Nom complet" class="w-full p-5 bg-slate-50 rounded-2xl font-bold border-none outline-none">
+                                    <input name="tel" placeholder="Téléphone" class="w-full p-5 bg-slate-50 rounded-2xl font-mono border-none outline-none">
+                                    <input name="lieu" placeholder="Lieu" class="w-full p-5 bg-slate-50 rounded-2xl border-none outline-none">
+                                    <div class="flex bg-slate-50 rounded-2xl p-1 gap-1">
+                                        <label class="flex-1 cursor-pointer"><input type="radio" name="source" value="Facebook" checked class="hidden peer"><div class="py-4 rounded-xl text-center peer-checked:bg-white text-slate-400 font-bold transition-all text-xs">FB</div></label>
+                                        <label class="flex-1 cursor-pointer"><input type="radio" name="source" value="TikTok" class="hidden peer"><div class="py-4 rounded-xl text-center peer-checked:bg-white text-slate-400 font-bold transition-all text-xs">TK</div></label>
+                                    </div>
+                                    <button type="submit" class="w-full bg-slate-900 text-white py-5 rounded-2xl font-black uppercase tracking-widest">Enregistrer</button>
+                                </form>
+                            </div>
+                        </div>
+                        <div class="lg:col-span-2 bg-white rounded-[3rem] shadow-xl overflow-hidden border border-white">
+                            <div class="p-8 border-b bg-slate-50/30 flex justify-between items-center">
+                                <h3 class="font-black uppercase text-xs text-slate-400 tracking-widest">Répertoire Clients (${this.data.clients.length})</h3>
+                            </div>
+                            <div class="overflow-x-auto">
+                                <table class="w-full text-left">
+                                    <thead class="text-[10px] uppercase text-slate-300 font-black border-b">
+                                        <tr><th class="px-8 py-5">Source</th><th class="px-8 py-5">Client</th><th class="px-8 py-5">Contact</th><th class="px-8 py-5 text-right">Action</th></tr>
+                                    </thead>
+                                    <tbody class="divide-y divide-slate-50">
+                                        ${this.data.clients.sort((a,b) => (a.nom || "").localeCompare(b.nom || "")).map(c => `
+                                            <tr class="hover:bg-indigo-50/30 transition-colors">
+                                                <td class="px-8 py-6"><div class="w-10 h-10 rounded-xl flex items-center justify-center font-black text-xs ${c.source === 'TikTok' ? 'bg-rose-50 text-rose-500' : 'bg-indigo-50 text-indigo-600'}">${c.source === 'TikTok' ? 'TK' : 'FB'}</div></td>
+                                                <td class="px-8 py-6">
+                                                    <div class="font-black text-slate-800">${c.nom}</div>
+                                                    <div class="text-[10px] text-slate-400 font-bold uppercase">${c.lieu || '-'}</div>
+                                                </td>
+                                                <td class="px-8 py-6 font-mono text-indigo-600 font-black">${c.telephone || c.tel || '-'}</td>
+                                                <td class="px-8 py-6 text-right"><button onclick="appState.deleteItem('clients', '${c.id}')" class="text-slate-100 hover:text-rose-500 p-2">✕</button></td>
+                                            </tr>
+                                        `).join('')}
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>`;
+            },
+
+            bindEvents() {
+                // Event Delegation & Binding
+                if (this.activeTab === 'vente') {
+                    const form = document.getElementById('venteForm');
+                    if(form) form.onsubmit = async (e) => {
+                        e.preventDefault();
+                        const fd = new FormData(form);
+                        const obj = Object.fromEntries(fd.entries());
+                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'livraisons'), {
+                            ...obj, montant: Number(obj.montant), statut: 'Préparation',
+                            timestamp: serverTimestamp(), date: new Date().toLocaleDateString('fr-FR'), userId: auth.currentUser.uid
+                        });
+                        this.setTab('livraisons');
+                    };
+
+                    const searchInput = document.getElementById('clientSearch');
+                    const dropdown = document.getElementById('searchDropdown');
+                    searchInput.oninput = (e) => {
+                        const val = e.target.value.toLowerCase();
+                        if (!val) { dropdown.classList.add('hidden'); return; }
+                        const results = this.data.clients.filter(c => c.nom.toLowerCase().includes(val));
+                        if (results.length === 0) { dropdown.classList.add('hidden'); return; }
+                        
+                        dropdown.classList.remove('hidden');
+                        dropdown.innerHTML = results.map(c => `
+                            <div class="p-5 hover:bg-indigo-50 cursor-pointer border-b last:border-none flex justify-between items-center" 
+                                onclick="appState.fillClient('${c.nom}', '${c.telephone || c.tel}', '${c.lieu || ''}', '${c.source}')">
+                                <div><div class="font-black text-slate-800 text-sm">${c.nom}</div><div class="text-[9px] font-bold text-indigo-400 uppercase">${c.source}</div></div>
+                                <span class="bg-indigo-600 text-white w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black">+</span>
+                            </div>`).join('');
+                    };
+                }
+
+                if (this.activeTab === 'finances') {
+                    document.getElementById('addVersementBtn').onclick = async () => {
+                        const mnt = document.getElementById('vMnt').value;
+                        if (!mnt) return;
+                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'versements'), {
+                            montant: Number(mnt), timestamp: serverTimestamp(), date: new Date().toLocaleDateString('fr-FR')
+                        });
+                    };
+                    document.getElementById('addDepenseBtn').onclick = async () => {
+                        const motif = document.getElementById('dMotif').value;
+                        const mnt = document.getElementById('dMnt').value;
+                        if (!motif || !mnt) return;
+                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'depenses'), {
+                            motif, montant: Number(mnt), timestamp: serverTimestamp(), date: new Date().toLocaleDateString('fr-FR')
+                        });
+                    };
+                }
+
+                if (this.activeTab === 'clients') {
+                    const form = document.getElementById('clientForm');
+                    if(form) form.onsubmit = async (e) => {
+                        e.preventDefault();
+                        const fd = new FormData(form);
+                        const obj = Object.fromEntries(fd.entries());
+                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'clients'), {
+                            ...obj, createdAt: serverTimestamp()
+                        });
+                        form.reset();
+                    };
+                }
+            },
+
+            fillClient(nom, tel, lieu, source) {
+                const form = document.getElementById('venteForm');
+                form.nom.value = nom;
+                form.tel.value = tel;
+                form.lieu.value = lieu;
+                form.source.value = source;
+                document.getElementById('searchDropdown').classList.add('hidden');
+                document.getElementById('clientSearch').value = "";
+            }
+        };
+
+        // --- AUTH & INITIALISATION ---
+        const handleAuth = async () => {
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                await signInWithCustomToken(auth, __initial_auth_token);
+            } else {
+                await signInAnonymously(auth);
+            }
+        };
+
+        onAuthStateChanged(auth, (u) => {
+            if (u) {
+                document.getElementById('loader').classList.add('hidden');
+                initDataListeners();
+                checkSession();
+            }
+        });
+
+        const checkSession = () => {
+            const isLogged = localStorage.getItem('rasoa_session') === 'active';
+            if (isLogged) {
+                document.getElementById('main-interface').classList.remove('hidden');
+                document.getElementById('login-screen').classList.add('hidden');
+                appState.render();
+            } else {
+                document.getElementById('login-screen').classList.remove('hidden');
+                document.getElementById('main-interface').classList.add('hidden');
+            }
+        };
+
+        document.getElementById('loginForm').onsubmit = (e) => {
+            e.preventDefault();
+            if (document.getElementById('passwordInput').value === 'rasoa123') {
+                localStorage.setItem('rasoa_session', 'active');
+                checkSession();
+            } else {
+                document.getElementById('loginError').classList.remove('hidden');
+            }
+        };
+
+        document.getElementById('logoutBtn').onclick = () => {
+            localStorage.removeItem('rasoa_session');
+            checkSession();
+        };
+
+        const initDataListeners = () => {
+            const getCol = (name) => collection(db, 'artifacts', appId, 'public', 'data', name);
+            onSnapshot(getCol('livraisons'), s => { appState.data.livraisons = s.docs.map(d => ({id: d.id, ...d.data()})); appState.render(); });
+            onSnapshot(getCol('clients'), s => { appState.data.clients = s.docs.map(d => ({id: d.id, ...d.data()})); appState.render(); });
+            onSnapshot(getCol('versements'), s => { appState.data.versements = s.docs.map(d => ({id: d.id, ...d.data()})); appState.render(); });
+            onSnapshot(getCol('depenses'), s => { appState.data.depenses = s.docs.map(d => ({id: d.id, ...d.data()})); appState.render(); });
+        };
+
+        handleAuth();
+    </script>
+</body>
+</html>
