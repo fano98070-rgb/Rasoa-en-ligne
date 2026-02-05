@@ -47,7 +47,10 @@
                 trash: h('path', { d: "M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" }),
                 facebook: h('path', { d: "M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" }),
                 tiktok: h('path', { d: "M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5" }),
-                search: h('circle', { cx: "11", cy: "11", r: "8" }, h('path', { d: "m21 21-4.3-4.3" }))
+                search: h('path', { d: "m21 21-4.3-4.3M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" }),
+                check: h('path', { d: "M20 6 9 17l-5-5" }),
+                clock: h('g', null, h('circle', { cx: "12", cy: "12", r: "10" }), h('polyline', { points: "12 6 12 12 16 14" })),
+                fast: h('path', { d: "M13 2L3 14h9l-1 8 10-12h-9l1-8z" })
             };
             return h('svg', { 
                 width: size, height: size, viewBox: "0 0 24 24", fill: "none", 
@@ -80,9 +83,11 @@
             const [clientForm, setClientForm] = useState({ nom: "", tel: "", adresse: "", source: "Facebook" });
             const [depenseForm, setDepenseForm] = useState({ titre: "", montant: "" });
             
-            // État pour la recherche de client dans l'onglet vente
             const [clientSearch, setClientSearch] = useState("");
             const [showSuggestions, setShowSuggestions] = useState(false);
+
+            const [trackingSearch, setTrackingSearch] = useState("");
+            const [trackingStatus, setTrackingStatus] = useState("tous");
 
             useEffect(() => {
                 try {
@@ -105,7 +110,6 @@
                 return () => { unsubL(); unsubC(); unsubD(); };
             }, [db]);
 
-            // Filtrage des suggestions de clients
             const filteredClients = useMemo(() => {
                 if (!clientSearch) return [];
                 return clients.filter(c => 
@@ -114,20 +118,48 @@
                 ).slice(0, 5);
             }, [clientSearch, clients]);
 
+            const trackingList = useMemo(() => {
+                return livraisons
+                    .filter(l => {
+                        const matchNom = l.nom?.toLowerCase().includes(trackingSearch.toLowerCase());
+                        const matchStatus = trackingStatus === "tous" || 
+                                          (trackingStatus === "attente" && l.statut === "En attente") || 
+                                          (trackingStatus === "en cours" && l.statut === "En cours") || 
+                                          (trackingStatus === "livre" && l.statut === "Livré");
+                        return matchNom && matchStatus;
+                    })
+                    .sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+            }, [livraisons, trackingSearch, trackingStatus]);
+
             const stats = useMemo(() => {
-                const livrees = livraisons.filter(l => l.statut === "Livré").reduce((acc, c) => acc + (Number(c.montant) || 0), 0);
+                const livrees = livraisons.filter(l => l.statut === "Livré");
+                const enCours = livraisons.filter(l => l.statut === "En cours");
+                const enAttente = livraisons.filter(l => l.statut === "En attente");
+                const totalLivrees = livrees.reduce((acc, c) => acc + (Number(c.montant) || 0), 0);
                 const charges = depenses.reduce((acc, c) => acc + (Number(c.montant) || 0), 0);
-                return { ventes: livrees, charges: charges, net: livrees - charges };
+                return { 
+                    ventes: totalLivrees, 
+                    charges: charges, 
+                    net: totalLivrees - charges,
+                    countAttente: enAttente.length,
+                    countEnCours: enCours.length,
+                    countLivre: livrees.length
+                };
             }, [livraisons, depenses]);
 
             const selectClient = (client) => {
-                setOrderForm({
-                    ...orderForm,
-                    nom: client.nom,
-                    lieu: client.adresse || ""
-                });
+                setOrderForm({ ...orderForm, nom: client.nom, lieu: client.adresse || "" });
                 setClientSearch(client.nom);
                 setShowSuggestions(false);
+            };
+
+            const getStatusColor = (statut) => {
+                switch(statut) {
+                    case 'En attente': return 'bg-blue-100 text-blue-600';
+                    case 'En cours': return 'bg-amber-100 text-amber-600';
+                    case 'Livré': return 'bg-green-100 text-green-600';
+                    default: return 'bg-slate-100 text-slate-600';
+                }
             };
 
             if (!db) return h('div', { className: "h-screen flex items-center justify-center font-black" }, "CONNEXION FIREBASE...");
@@ -163,15 +195,10 @@
                             h('button', { onClick: () => setOrderForm({...orderForm, source: 'TikTok'}), className: `flex flex-col items-center gap-2 p-4 rounded-2xl border-2 ${orderForm.source === 'TikTok' ? 'source-btn-active-tk' : 'border-transparent opacity-40'}` }, h(Icon, { name: "tiktok", size: 32 }), h('span', { className: "text-[8px] font-black" }, "TIKTOK"))
                         ),
                         h('div', { className: "space-y-4 relative" },
-                            // Recherche de client
                             h('div', { className: "relative" },
                                 h('input', { 
                                     value: clientSearch, 
-                                    onChange: e => {
-                                        setClientSearch(e.target.value);
-                                        setOrderForm({...orderForm, nom: e.target.value});
-                                        setShowSuggestions(true);
-                                    },
+                                    onChange: e => { setClientSearch(e.target.value); setOrderForm({...orderForm, nom: e.target.value}); setShowSuggestions(true); },
                                     onFocus: () => setShowSuggestions(true),
                                     placeholder: "Chercher ou saisir un client...", 
                                     className: "w-full p-4 bg-slate-50 rounded-2xl font-bold border border-transparent focus:border-indigo-200 outline-none transition-all" 
@@ -195,7 +222,12 @@
                             h('button', {
                                 onClick: async () => {
                                     if(!orderForm.nom || !orderForm.montant) return;
-                                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'livraisons'), { ...orderForm, montant: Number(orderForm.montant), statut: "En cours", timestamp: serverTimestamp() });
+                                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'livraisons'), { 
+                                        ...orderForm, 
+                                        montant: Number(orderForm.montant), 
+                                        statut: "En attente", 
+                                        timestamp: serverTimestamp() 
+                                    });
                                     setOrderForm({ nom: "", montant: "", lieu: "", source: orderForm.source });
                                     setClientSearch("");
                                     setActiveTab("livraisons");
@@ -205,30 +237,77 @@
                         )
                     ),
 
-                    activeTab === 'livraisons' && h('div', { className: "space-y-3" },
-                        livraisons.length === 0 ? h('p', {className: "text-center text-slate-400 py-10 font-bold"}, "Aucune livraison en cours") :
-                        livraisons.sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)).map(l => h('div', { key: l.id, className: "bg-white p-5 rounded-[2rem] border shadow-sm" },
-                            h('div', { className: "flex justify-between items-start" },
-                                h('div', null,
-                                    h('div', { className: "flex items-center gap-2 mb-1" },
-                                        h(Icon, { name: (l.source || "Facebook").toLowerCase(), size: 10, className: l.source === 'TikTok' ? 'text-slate-900' : 'text-indigo-600' }),
-                                        h('p', { className: "font-black text-[12px] uppercase" }, l.nom)
-                                    ),
-                                    h('p', { className: "text-[10px] font-bold text-slate-400" }, l.lieu)
-                                ),
-                                h('span', { className: `px-3 py-1 rounded-full text-[8px] font-black uppercase ${l.statut === 'Livré' ? 'bg-green-100 text-green-600 border-green-200' : 'bg-amber-100 text-amber-600 border-amber-200'}` }, l.statut)
+                    activeTab === 'livraisons' && h('div', { className: "space-y-6" },
+                        h('div', { className: "space-y-4" },
+                            h('div', { className: "grid grid-cols-3 gap-2" },
+                                [
+                                    { id: 'attente', label: 'Attente', count: stats.countAttente, color: 'blue' },
+                                    { id: 'en cours', label: 'En Cours', count: stats.countEnCours, color: 'amber' },
+                                    { id: 'livre', label: 'Livrés', count: stats.countLivre, color: 'green' }
+                                ].map(s => h('button', { 
+                                    key: s.id,
+                                    onClick: () => setTrackingStatus(s.id),
+                                    className: `p-3 rounded-2xl border flex flex-col items-center gap-1 transition-all ${trackingStatus === s.id ? `bg-${s.color}-50 border-${s.color}-200` : 'bg-white border-slate-100'}`
+                                }, 
+                                    h('span', { className: `text-${s.color}-600 font-black text-lg` }, s.count),
+                                    h('span', { className: "text-[8px] font-bold uppercase text-slate-400" }, s.label)
+                                ))
                             ),
-                            h('div', { className: "flex justify-between items-center mt-4 pt-3 border-t" },
-                                h('span', { className: "font-black text-indigo-600 text-base" }, `${(l.montant || 0).toLocaleString()} Ar`),
-                                h('div', { className: "flex gap-2" },
-                                    l.statut !== 'Livré' && h('button', {
-                                        onClick: () => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', l.id), { statut: 'Livré' }),
-                                        className: "px-5 py-2.5 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase"
-                                    }, "Valider"),
-                                    h('button', { onClick: () => deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', l.id)), className: "p-2.5 text-rose-500 bg-rose-50 rounded-xl" }, h(Icon, { name: "trash", size: 14 }))
-                                )
+                            h('div', { className: "flex gap-2" },
+                                h('div', { className: "flex-1 relative" },
+                                    h('input', { 
+                                        value: trackingSearch, 
+                                        onChange: e => setTrackingSearch(e.target.value), 
+                                        placeholder: "Filtrer par nom...", 
+                                        className: "w-full pl-10 pr-4 py-3 bg-white border border-slate-100 rounded-xl font-bold outline-none text-xs" 
+                                    }),
+                                    h(Icon, { name: "search", size: 14, className: "absolute left-3 top-3.5 text-slate-300" })
+                                ),
+                                trackingStatus !== 'tous' && h('button', { 
+                                    onClick: () => setTrackingStatus('tous'),
+                                    className: "px-4 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase"
+                                }, "Tous")
                             )
-                        ))
+                        ),
+
+                        h('div', { className: "space-y-3" },
+                            trackingList.length === 0 ? h('div', {className: "text-center py-12 bg-white rounded-[2rem] border"}, 
+                                h('p', {className: "text-slate-400 font-bold mb-1"}, "Aucune livraison trouvée"),
+                                h('button', { onClick: () => {setTrackingSearch(""); setTrackingStatus("tous")}, className: "text-[10px] text-indigo-600 font-black uppercase" }, "Réinitialiser")
+                            ) :
+                            trackingList.map(l => h('div', { key: l.id, className: `bg-white p-5 rounded-[2rem] border shadow-sm transition-all ${l.statut === 'Livré' ? 'opacity-70 grayscale-[0.5]' : ''}` },
+                                h('div', { className: "flex justify-between items-start" },
+                                    h('div', null,
+                                        h('div', { className: "flex items-center gap-2 mb-1" },
+                                            h(Icon, { name: (l.source || "Facebook").toLowerCase(), size: 10, className: l.source === 'TikTok' ? 'text-slate-900' : 'text-indigo-600' }),
+                                            h('p', { className: "font-black text-[12px] uppercase" }, l.nom)
+                                        ),
+                                        h('p', { className: "text-[10px] font-bold text-slate-400" }, l.lieu)
+                                    ),
+                                    h('div', { className: "flex flex-col items-end gap-1" },
+                                        h('span', { className: `px-3 py-1 rounded-full text-[8px] font-black uppercase flex items-center gap-1 ${getStatusColor(l.statut)}` }, 
+                                            h(Icon, { name: l.statut === 'Livré' ? 'check' : (l.statut === 'En attente' ? 'clock' : 'fast'), size: 8 }),
+                                            l.statut
+                                        ),
+                                        h('span', { className: "text-[8px] text-slate-300 font-bold" }, l.timestamp ? new Date(l.timestamp.seconds * 1000).toLocaleDateString() : '')
+                                    )
+                                ),
+                                h('div', { className: "flex justify-between items-center mt-4 pt-3 border-t" },
+                                    h('span', { className: "font-black text-indigo-600 text-base" }, `${(l.montant || 0).toLocaleString()} Ar`),
+                                    h('div', { className: "flex gap-2" },
+                                        l.statut === 'En attente' && h('button', {
+                                            onClick: () => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', l.id), { statut: 'En cours' }),
+                                            className: "px-5 py-2.5 bg-amber-500 text-white rounded-xl text-[9px] font-black uppercase shadow-lg shadow-amber-100"
+                                        }, "Démarrer"),
+                                        l.statut === 'En cours' && h('button', {
+                                            onClick: () => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', l.id), { statut: 'Livré' }),
+                                            className: "px-5 py-2.5 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase"
+                                        }, "Valider"),
+                                        h('button', { onClick: () => deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', l.id)), className: "p-2.5 text-rose-500 bg-rose-50 rounded-xl" }, h(Icon, { name: "trash", size: 14 }))
+                                    )
+                                )
+                            ))
+                        )
                     ),
 
                     activeTab === 'clients' && h('div', { className: "bg-white rounded-[2.5rem] border shadow-xl overflow-hidden" },
