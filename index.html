@@ -50,7 +50,8 @@
                 search: h('path', { d: "m21 21-4.3-4.3M11 19a8 8 0 1 0 0-16 8 8 0 0 0 0 16z" }),
                 check: h('path', { d: "M20 6 9 17l-5-5" }),
                 clock: h('g', null, h('circle', { cx: "12", cy: "12", r: "10" }), h('polyline', { points: "12 6 12 12 16 14" })),
-                fast: h('path', { d: "M13 2L3 14h9l-1 8 10-12h-9l1-8z" })
+                fast: h('path', { d: "M13 2L3 14h9l-1 8 10-12h-9l1-8z" }),
+                fileText: h('path', { d: "M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z M14 2v6h6" })
             };
             return h('svg', { 
                 width: size, height: size, viewBox: "0 0 24 24", fill: "none", 
@@ -78,6 +79,7 @@
             const [livraisons, setLivraisons] = useState([]);
             const [clients, setClients] = useState([]);
             const [depenses, setDepenses] = useState([]);
+            const [rapports, setRapports] = useState([]);
 
             const [orderForm, setOrderForm] = useState({ nom: "", montant: "", lieu: "", source: "Facebook" });
             const [clientForm, setClientForm] = useState({ nom: "", tel: "", adresse: "", source: "Facebook" });
@@ -106,9 +108,26 @@
                 const unsubL = onSnapshot(getColl('livraisons'), s => setLivraisons(s.docs.map(d => ({id: d.id, ...d.data()}))), e => console.log("L error:", e));
                 const unsubC = onSnapshot(getColl('clients'), s => setClients(s.docs.map(d => ({id: d.id, ...d.data()}))), e => console.log("C error:", e));
                 const unsubD = onSnapshot(getColl('depenses'), s => setDepenses(s.docs.map(d => ({id: d.id, ...d.data()}))), e => console.log("D error:", e));
+                const unsubR = onSnapshot(getColl('rapports'), s => setRapports(s.docs.map(d => ({id: d.id, ...d.data()}))), e => console.log("R error:", e));
                 
-                return () => { unsubL(); unsubC(); unsubD(); };
+                return () => { unsubL(); unsubC(); unsubD(); unsubR(); };
             }, [db]);
+
+            const stats = useMemo(() => {
+                const livrees = livraisons.filter(l => l.statut === "Livré");
+                const enCours = livraisons.filter(l => l.statut === "En cours");
+                const enAttente = livraisons.filter(l => l.statut === "En attente");
+                const totalLivrees = livrees.reduce((acc, c) => acc + (Number(c.montant) || 0), 0);
+                const charges = depenses.reduce((acc, c) => acc + (Number(c.montant) || 0), 0);
+                return { 
+                    ventes: totalLivrees, 
+                    charges: charges, 
+                    net: totalLivrees - charges,
+                    countAttente: enAttente.length,
+                    countEnCours: enCours.length,
+                    countLivre: livrees.length
+                };
+            }, [livraisons, depenses]);
 
             const filteredClients = useMemo(() => {
                 if (!clientSearch) return [];
@@ -131,21 +150,27 @@
                     .sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
             }, [livraisons, trackingSearch, trackingStatus]);
 
-            const stats = useMemo(() => {
-                const livrees = livraisons.filter(l => l.statut === "Livré");
-                const enCours = livraisons.filter(l => l.statut === "En cours");
-                const enAttente = livraisons.filter(l => l.statut === "En attente");
-                const totalLivrees = livrees.reduce((acc, c) => acc + (Number(c.montant) || 0), 0);
-                const charges = depenses.reduce((acc, c) => acc + (Number(c.montant) || 0), 0);
-                return { 
-                    ventes: totalLivrees, 
-                    charges: charges, 
-                    net: totalLivrees - charges,
-                    countAttente: enAttente.length,
-                    countEnCours: enCours.length,
-                    countLivre: livrees.length
-                };
-            }, [livraisons, depenses]);
+            const handleSaveReport = async () => {
+                if (!db) return;
+                const today = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+                
+                // Vérifier si un rapport existe déjà pour aujourd'hui pourrait être une option, 
+                // mais ici on permet de sauvegarder l'état à l'instant T.
+                try {
+                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'rapports'), {
+                        dateLabel: today,
+                        ventes: stats.ventes,
+                        charges: stats.charges,
+                        net: stats.net,
+                        nbLivraisons: stats.countLivre,
+                        timestamp: serverTimestamp()
+                    });
+                    setShowModal('success-report');
+                    setTimeout(() => setShowModal(null), 2000);
+                } catch (e) {
+                    console.error("Error saving report:", e);
+                }
+            };
 
             const selectClient = (client) => {
                 setOrderForm({ ...orderForm, nom: client.nom, lieu: client.adresse || "" });
@@ -328,9 +353,19 @@
                     ),
 
                     activeTab === 'finances' && h('div', { className: "space-y-4" },
-                        h('div', { className: "bg-slate-900 p-8 rounded-[2.5rem] text-white shadow-2xl" },
-                            h('p', { className: "text-[10px] font-black uppercase opacity-60 mb-1" }, "Solde Net (Ventes Livrées - Dépenses)"),
-                            h('p', { className: "text-4xl font-black tracking-tighter" }, `${stats.net.toLocaleString()} Ar`)
+                        h('div', { className: "bg-slate-900 p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden" },
+                            h('div', { className: "relative z-10" },
+                                h('p', { className: "text-[10px] font-black uppercase opacity-60 mb-1" }, "Solde Net Actuel"),
+                                h('p', { className: "text-4xl font-black tracking-tighter" }, `${stats.net.toLocaleString()} Ar`),
+                                h('button', { 
+                                    onClick: handleSaveReport,
+                                    className: "mt-6 flex items-center gap-2 bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl transition-all border border-white/10"
+                                }, 
+                                    h(Icon, { name: "fileText", size: 14 }),
+                                    h('span', { className: "text-[10px] font-black uppercase" }, "Sauvegarder le rapport du jour")
+                                )
+                            ),
+                            h('div', { className: "absolute -right-10 -bottom-10 opacity-10" }, h(Icon, { name: "wallet", size: 160 }))
                         ),
                         h('div', { className: "grid grid-cols-2 gap-4" },
                             h('div', { className: "bg-white p-5 rounded-3xl border" },
@@ -342,6 +377,26 @@
                                 h('p', { className: "text-lg font-black" }, `${stats.charges.toLocaleString()} Ar`)
                             )
                         ),
+                        
+                        h('div', { className: "bg-white p-6 rounded-[2rem] border" },
+                            h('div', { className: "flex justify-between items-center mb-4" },
+                                h('h3', { className: "text-[10px] font-black uppercase text-slate-400" }, "Historique des Rapports"),
+                                h(Icon, { name: "fileText", size: 12, className: "text-slate-300" })
+                            ),
+                            rapports.length === 0 ? h('p', {className: "text-center text-slate-300 text-[10px] py-4"}, "Aucun rapport enregistré") :
+                            rapports.sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0)).map(r => h('div', { key: r.id, className: "p-4 mb-3 bg-slate-50 rounded-2xl border border-slate-100" },
+                                h('div', { className: "flex justify-between items-start mb-2" },
+                                    h('p', { className: "text-[11px] font-black" }, r.dateLabel),
+                                    h('button', { onClick: () => deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'rapports', r.id)) }, h(Icon, { name: "trash", size: 10, className: "text-slate-300" }))
+                                ),
+                                h('div', { className: "grid grid-cols-3 gap-2" },
+                                    h('div', null, h('p', {className: "text-[8px] text-slate-400 uppercase font-bold"}, "Ventes"), h('p', {className: "text-[10px] font-black text-green-600"}, `${r.ventes?.toLocaleString()} Ar`)),
+                                    h('div', null, h('p', {className: "text-[8px] text-slate-400 uppercase font-bold"}, "Dépenses"), h('p', {className: "text-[10px] font-black text-rose-600"}, `${r.charges?.toLocaleString()} Ar`)),
+                                    h('div', null, h('p', {className: "text-[8px] text-slate-400 uppercase font-bold"}, "Net"), h('p', {className: "text-[10px] font-black text-slate-900"}, `${r.net?.toLocaleString()} Ar`))
+                                )
+                            ))
+                        ),
+
                         h('div', { className: "bg-white p-6 rounded-[2rem] border" },
                             h('h3', { className: "text-[10px] font-black uppercase mb-4 text-slate-400" }, "Historique Dépenses"),
                             depenses.length === 0 ? h('p', {className: "text-center text-slate-300 text-[10px] py-4"}, "Aucune dépense") :
@@ -353,6 +408,13 @@
                                 )
                             ))
                         )
+                    )
+                ),
+
+                h(Modal, { isOpen: showModal === 'success-report', onClose: () => setShowModal(null), title: "Succès" },
+                    h('div', { className: "py-8 text-center" },
+                        h('div', { className: "w-16 h-16 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-4" }, h(Icon, { name: "check", size: 32 })),
+                        h('p', { className: "font-black uppercase text-xs" }, "Le rapport a été sauvegardé !")
                     )
                 ),
 
