@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rasoa Pro - V4 Connecté</title>
+    <title>Rasoa Pro - Planification Livraisons</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -51,7 +51,8 @@
                 check: h('path', { d: "M20 6 9 17l-5-5" }),
                 clock: h('g', null, h('circle', { cx: "12", cy: "12", r: "10" }), h('polyline', { points: "12 6 12 12 16 14" })),
                 fast: h('path', { d: "M13 2L3 14h9l-1 8 10-12h-9l1-8z" }),
-                fileText: h('path', { d: "M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z M14 2v6h6" })
+                fileText: h('path', { d: "M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z M14 2v6h6" }),
+                calendar: h('rect', { width: "18", height: "18", x: "3", y: "4", rx: "2", ry: "2" }, h('line', { x1: "16", x2: "16", y1: "2", y2: "6" }), h('line', { x1: "8", x2: "8", y1: "2", y2: "6" }), h('line', { x1: "3", x2: "21", y1: "10", y2: "10" }))
             };
             return h('svg', { 
                 width: size, height: size, viewBox: "0 0 24 24", fill: "none", 
@@ -81,7 +82,8 @@
             const [depenses, setDepenses] = useState([]);
             const [rapports, setRapports] = useState([]);
 
-            const [orderForm, setOrderForm] = useState({ nom: "", montant: "", lieu: "", source: "Facebook" });
+            // Ajout de datePlanif dans le formulaire initial
+            const [orderForm, setOrderForm] = useState({ nom: "", montant: "", lieu: "", source: "Facebook", datePlanif: "" });
             const [clientForm, setClientForm] = useState({ nom: "", tel: "", adresse: "", source: "Facebook" });
             const [depenseForm, setDepenseForm] = useState({ titre: "", montant: "" });
             
@@ -147,15 +149,17 @@
                                           (trackingStatus === "livre" && l.statut === "Livré");
                         return matchNom && matchStatus;
                     })
-                    .sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0));
+                    // Tri par date de planification (les plus proches d'abord)
+                    .sort((a,b) => {
+                        if(!a.datePlanif) return 1;
+                        if(!b.datePlanif) return -1;
+                        return new Date(a.datePlanif) - new Date(b.datePlanif);
+                    });
             }, [livraisons, trackingSearch, trackingStatus]);
 
             const handleSaveReport = async () => {
                 if (!db) return;
                 const today = new Date().toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
-                
-                // Vérifier si un rapport existe déjà pour aujourd'hui pourrait être une option, 
-                // mais ici on permet de sauvegarder l'état à l'instant T.
                 try {
                     await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'rapports'), {
                         dateLabel: today,
@@ -187,6 +191,12 @@
                 }
             };
 
+            const formatDateFR = (dateStr) => {
+                if(!dateStr) return "Non planifié";
+                const date = new Date(dateStr);
+                return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+            };
+
             if (!db) return h('div', { className: "h-screen flex items-center justify-center font-black" }, "CONNEXION FIREBASE...");
 
             return h('div', { className: "min-h-screen bg-slate-50 flex flex-col" },
@@ -216,8 +226,8 @@
 
                     activeTab === 'commandes' && h('div', { className: "bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100" },
                         h('div', { className: "flex justify-center gap-6 mb-8" },
-                            h('button', { onClick: () => setOrderForm({...orderForm, source: 'Facebook'}), className: `flex flex-col items-center gap-2 p-4 rounded-2xl border-2 ${orderForm.source === 'Facebook' ? 'source-btn-active' : 'border-transparent opacity-40'}` }, h(Icon, { name: "facebook", size: 32 }), h('span', { className: "text-[8px] font-black" }, "FACEBOOK")),
-                            h('button', { onClick: () => setOrderForm({...orderForm, source: 'TikTok'}), className: `flex flex-col items-center gap-2 p-4 rounded-2xl border-2 ${orderForm.source === 'TikTok' ? 'source-btn-active-tk' : 'border-transparent opacity-40'}` }, h(Icon, { name: "tiktok", size: 32 }), h('span', { className: "text-[8px] font-black" }, "TIKTOK"))
+                            h('button', { onClick: () => setOrderForm({...orderForm, source: 'Facebook'}), className: `flex-1 flex flex-col items-center gap-2 p-4 rounded-2xl border-2 ${orderForm.source === 'Facebook' ? 'source-btn-active' : 'border-transparent opacity-40'}` }, h(Icon, { name: "facebook", size: 32 }), h('span', { className: "text-[8px] font-black" }, "FACEBOOK")),
+                            h('button', { onClick: () => setOrderForm({...orderForm, source: 'TikTok'}), className: `flex-1 flex flex-col items-center gap-2 p-4 rounded-2xl border-2 ${orderForm.source === 'TikTok' ? 'source-btn-active-tk' : 'border-transparent opacity-40'}` }, h(Icon, { name: "tiktok", size: 32 }), h('span', { className: "text-[8px] font-black" }, "TIKTOK"))
                         ),
                         h('div', { className: "space-y-4 relative" },
                             h('div', { className: "relative" },
@@ -242,7 +252,17 @@
                                     ))
                                 )
                             ),
-                            h('input', { value: orderForm.lieu, onChange: e => setOrderForm({...orderForm, lieu: e.target.value}), placeholder: "Lieu de livraison", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none" }),
+                            h('div', { className: "grid grid-cols-2 gap-3" },
+                                h('input', { value: orderForm.lieu, onChange: e => setOrderForm({...orderForm, lieu: e.target.value}), placeholder: "Lieu livraison", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none" }),
+                                h('div', { className: "relative flex items-center" },
+                                    h('input', { 
+                                        type: "date", 
+                                        value: orderForm.datePlanif, 
+                                        onChange: e => setOrderForm({...orderForm, datePlanif: e.target.value}), 
+                                        className: "w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none text-slate-500 uppercase text-[10px]" 
+                                    })
+                                )
+                            ),
                             h('input', { type: "number", value: orderForm.montant, onChange: e => setOrderForm({...orderForm, montant: e.target.value}), placeholder: "Montant Ar", className: "w-full p-5 bg-slate-50 rounded-2xl font-black text-indigo-600 text-3xl outline-none" }),
                             h('button', {
                                 onClick: async () => {
@@ -253,7 +273,7 @@
                                         statut: "En attente", 
                                         timestamp: serverTimestamp() 
                                     });
-                                    setOrderForm({ nom: "", montant: "", lieu: "", source: orderForm.source });
+                                    setOrderForm({ nom: "", montant: "", lieu: "", source: orderForm.source, datePlanif: "" });
                                     setClientSearch("");
                                     setActiveTab("livraisons");
                                 },
@@ -289,7 +309,7 @@
                                     h(Icon, { name: "search", size: 14, className: "absolute left-3 top-3.5 text-slate-300" })
                                 ),
                                 trackingStatus !== 'tous' && h('button', { 
-                                    onClick: () => setTrackingStatus('tous'),
+                                    onClick: () => { setTrackingStatus('tous'); setTrackingSearch(''); },
                                     className: "px-4 py-2 bg-slate-900 text-white rounded-xl text-[10px] font-black uppercase"
                                 }, "Tous")
                             )
@@ -307,14 +327,17 @@
                                             h(Icon, { name: (l.source || "Facebook").toLowerCase(), size: 10, className: l.source === 'TikTok' ? 'text-slate-900' : 'text-indigo-600' }),
                                             h('p', { className: "font-black text-[12px] uppercase" }, l.nom)
                                         ),
-                                        h('p', { className: "text-[10px] font-bold text-slate-400" }, l.lieu)
+                                        h('div', { className: "flex items-center gap-2 text-slate-400" },
+                                            h(Icon, { name: "calendar", size: 10 }),
+                                            h('p', { className: "text-[10px] font-bold" }, formatDateFR(l.datePlanif))
+                                        )
                                     ),
                                     h('div', { className: "flex flex-col items-end gap-1" },
                                         h('span', { className: `px-3 py-1 rounded-full text-[8px] font-black uppercase flex items-center gap-1 ${getStatusColor(l.statut)}` }, 
                                             h(Icon, { name: l.statut === 'Livré' ? 'check' : (l.statut === 'En attente' ? 'clock' : 'fast'), size: 8 }),
                                             l.statut
                                         ),
-                                        h('span', { className: "text-[8px] text-slate-300 font-bold" }, l.timestamp ? new Date(l.timestamp.seconds * 1000).toLocaleDateString() : '')
+                                        h('span', { className: "text-[8px] text-slate-300 font-bold" }, l.lieu)
                                     )
                                 ),
                                 h('div', { className: "flex justify-between items-center mt-4 pt-3 border-t" },
