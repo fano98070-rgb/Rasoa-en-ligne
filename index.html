@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rasoa Pro - V5.6 Fix Cloture</title>
+    <title>Rasoa Pro - V6.0</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -11,11 +11,11 @@
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;600;700;800&display=swap');
         body { font-family: 'Plus Jakarta Sans', sans-serif; overflow-x: hidden; }
         .tab-active { background-color: #0f172a; color: white; transform: scale(1.05); }
-        .source-btn-active { border-color: #4f46e5; background-color: #eef2ff; color: #4f46e5; }
-        .source-btn-active-tk { border-color: #0f172a; background-color: #f8fafc; color: #0f172a; }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .filter-active { background-color: #0f172a; color: white; border-color: #0f172a; }
         .animate-fadeIn { animation: fadeIn 0.3s ease-out forwards; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-900 text-[13px]">
@@ -23,7 +23,7 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-app.js";
-        import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, serverTimestamp, query, writeBatch } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
+        import { getFirestore, collection, addDoc, onSnapshot, doc, updateDoc, deleteDoc, serverTimestamp, query, orderBy } from "https://www.gstatic.com/firebasejs/11.1.0/firebase-firestore.js";
 
         const { useState, useEffect, useMemo, createElement: h } = React;
 
@@ -37,26 +37,27 @@
             measurementId: "G-NL45NY47LG"
         };
 
-        const appId = "rasoa-pro-v4";
+        const appId = "rasoa-pro-v4"; 
 
         const Icon = ({ name, size = 20, className = "" }) => {
             const icons = {
                 shoppingCart: h('path', { d: "M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z M3 6h18 M16 10a4 4 0 0 1-8 0" }),
                 truck: h('g', null, h('rect', { width: "16", height: "13", x: "2", y: "6", rx: "2" }), h('path', { d: "M16 19h4a2 2 0 0 0 2-2v-5l-3-3h-3" }), h('circle', { cx: "9", cy: "19", r: "2" }), h('circle', { cx: "18", cy: "19", r: "2" })),
-                users: h('g', null, h('path', { d: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" }), h('circle', { cx: "9", cy: "7", r: "4" })),
+                users: h('path', { d: "M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2 M9 7a4 4 0 1 0 0-8 4 4 0 0 0 0 8z M22 21v-2a4 4 0 0 0-3-3.87 M16 3.13a4 4 0 0 1 0 7.75" }),
                 wallet: h('path', { d: "M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4a1 1 0 0 1-1 1H4a2 2 0 0 0 0 4h15a1 1 0 0 0 1-1v-4" }),
                 plus: h('path', { d: "M12 5v14M5 12h14" }),
-                trash: h('path', { d: "M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" }),
                 facebook: h('path', { d: "M18 2h-3a5 5 0 0 0-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 0 1 1-1h3z" }),
                 tiktok: h('path', { d: "M9 12a4 4 0 1 0 4 4V4a5 5 0 0 0 5 5" }),
-                calendar: h('g', null, h('rect', { width: "18", height: "18", x: "3", y: "4", rx: "2" }), h('path', { d: "M16 2v4M8 2v4M3 10h18" })),
                 trendingUp: h('path', { d: "m22 7-8.5 8.5-5-5L2 18M22 7h-6M22 7v6" }),
-                alertCircle: h('path', { d: "M12 8v4M12 16h.01M22 12c0 5.523-4.477 10-10 10S2 17.523 2 12 6.477 2 12 2s10 4.477 10 10z" }),
                 check: h('path', { d: "M20 6 9 17l-5-5" }),
-                edit: h('path', { d: "M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7 M18.5 2.5a2.121 2.121 0 1 1 3 3L12 15l-4 1 1-4 9.5-9.5z" }),
+                arrowRight: h('path', { d: "M5 12h14M12 5l7 7-7 7" }),
+                trash: h('path', { d: "M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" }),
+                phone: h('path', { d: "M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z" }),
+                edit: h('path', { d: "M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7 M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" }),
                 mapPin: h('path', { d: "M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" }),
-                history: h('path', { d: "M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8 M3 3v5h5" }),
-                checkCircle: h('path', { d: "M22 11.08V12a10 10 0 1 1-5.93-9.14 M22 4L12 14.01l-3-3" })
+                bell: h('path', { d: "M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9 M10.3 21a1.94 1.94 0 0 0 3.4 0" }),
+                calendar: h('path', { d: "M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z M16 2v4 M8 2v4 M3 10h18" }),
+                refresh: h('path', { d: "M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" }),
             };
             return h('svg', { 
                 width: size, height: size, viewBox: "0 0 24 24", fill: "none", 
@@ -65,41 +66,29 @@
             }, icons[name] || null);
         };
 
-        const Modal = ({ isOpen, onClose, title, children }) => {
-            if (!isOpen) return null;
-            return h('div', { className: "fixed inset-0 z-[110] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm" },
-                h('div', { className: "bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl relative animate-fadeIn" },
-                    h('button', { onClick: onClose, className: "absolute top-6 right-6 text-slate-400 p-2" }, h(Icon, { name: "plus", className: "rotate-45", size: 24 })),
-                    h('h2', { className: "text-xl font-black uppercase tracking-tight mb-6" }, title),
-                    children
-                )
-            );
-        };
-
         function App() {
             const [db, setDb] = useState(null);
             const [activeTab, setActiveTab] = useState("commandes");
-            const [showModal, setShowModal] = useState(null);
-            const [clotureLoading, setClotureLoading] = useState(false);
-            const [toast, setToast] = useState(null);
-            
             const [livraisons, setLivraisons] = useState([]);
             const [clients, setClients] = useState([]);
             const [depenses, setDepenses] = useState([]);
-            
-            const [orderForm, setOrderForm] = useState({ nom: "", montant: "", lieu: "", source: "Facebook", datePlanif: "", statutPaiement: "payé", avance: "" });
-            const [clientForm, setClientForm] = useState({ nom: "", tel: "", adresse: "", source: "Facebook" });
-            const [depenseForm, setDepenseForm] = useState({ titre: "", montant: "" });
-            const [partialPayment, setPartialPayment] = useState({ id: null, amount: "" });
-            
+            const [deliveryFilter, setDeliveryFilter] = useState("En attente"); // Filtre par défaut sur En attente
+
+            const [orderForm, setOrderForm] = useState({ 
+                nom: "", telephone: "", montant: "", avance: 0,
+                lieu: "", source: "Facebook", paiement: "Paiement sur livraison",
+                datePlanif: new Date().toISOString().split('T')[0] 
+            });
+
+            const [editingOrder, setEditingOrder] = useState(null);
+            const [clientForm, setClientForm] = useState({ nom: "", telephone: "", adresse: "", source: "Facebook" });
+            const [expenseForm, setExpenseForm] = useState({ titre: "", montant: "" });
             const [clientSearch, setClientSearch] = useState("");
             const [showSuggestions, setShowSuggestions] = useState(false);
-            const [trackingStatus, setTrackingStatus] = useState("tous");
 
             useEffect(() => {
                 const app = initializeApp(firebaseConfig);
-                const _db = getFirestore(app);
-                setDb(_db);
+                setDb(getFirestore(app));
             }, []);
 
             useEffect(() => {
@@ -111,377 +100,338 @@
                 return () => { unsubL(); unsubC(); unsubD(); };
             }, [db]);
 
-            useEffect(() => {
-                if (toast) {
-                    const timer = setTimeout(() => setToast(null), 3000);
-                    return () => clearTimeout(timer);
+            const tomorrowStr = useMemo(() => {
+                const tomorrow = new Date();
+                tomorrow.setDate(tomorrow.getDate() + 1);
+                return tomorrow.toISOString().split('T')[0];
+            }, []);
+
+            const tomorrowCount = useMemo(() => {
+                return livraisons.filter(l => l.datePlanif === tomorrowStr && l.statut !== "Livré").length;
+            }, [livraisons, tomorrowStr]);
+
+            const counts = useMemo(() => {
+                return {
+                    "En attente": livraisons.filter(l => l.statut === "En attente" || !l.statut).length,
+                    "En cours": livraisons.filter(l => l.statut === "En cours").length,
+                    "Livré": livraisons.filter(l => l.statut === "Livré").length,
+                    "Pas encore payé": livraisons.filter(l => l.paiement === "Pas encore payé").length,
+                    "Demain": tomorrowCount
+                };
+            }, [livraisons, tomorrowCount]);
+
+            const filteredLivraisons = useMemo(() => {
+                if (deliveryFilter === "Pas encore payé") {
+                    return livraisons.filter(l => l.paiement === "Pas encore payé");
                 }
-            }, [toast]);
+                if (deliveryFilter === "Demain") {
+                    return livraisons.filter(l => l.datePlanif === tomorrowStr);
+                }
+                if (deliveryFilter === "En attente") {
+                    return livraisons.filter(l => (l.statut === "En attente" || !l.statut));
+                }
+                return livraisons.filter(l => l.statut === deliveryFilter);
+            }, [livraisons, deliveryFilter, tomorrowStr]);
 
             const stats = useMemo(() => {
                 const livrees = livraisons.filter(l => l.statut === "Livré");
-                const totalRevenuReel = livrees.reduce((acc, l) => {
-                    if (l.statutPaiement === 'payé' || !l.statutPaiement) return acc + (Number(l.montant) || 0);
-                    if (l.statutPaiement === 'avance') return acc + (Number(l.avance) || 0);
-                    return acc;
-                }, 0);
+                const totalRevenu = livrees.reduce((acc, l) => acc + (Number(l.montant) || 0), 0);
                 const charges = depenses.reduce((acc, c) => acc + (Number(c.montant) || 0), 0);
-                
-                const demain = new Date();
-                demain.setDate(demain.getDate() + 1);
-                const demainStr = demain.toISOString().split('T')[0];
-                const alertesJ1 = livraisons.filter(l => l.statut !== "Livré" && l.datePlanif === demainStr);
-
-                return { 
-                    ventes: totalRevenuReel, 
-                    charges, 
-                    net: totalRevenuReel - charges,
-                    countAttente: livraisons.filter(l => l.statut === "En attente").length,
-                    countEnCours: livraisons.filter(l => l.statut === "En cours").length,
-                    countDette: livraisons.filter(l => (l.statutPaiement === "non_paye" || l.statutPaiement === "avance") && l.statut !== "Livré").length,
-                    countLivre: livrees.length,
-                    alertesJ1,
-                    ventesDetails: livrees.sort((a,b) => (b.timestamp?.seconds || 0) - (a.timestamp?.seconds || 0))
-                };
+                return { net: totalRevenu - charges, encaisse: totalRevenu, charges, livrees };
             }, [livraisons, depenses]);
 
-            const trackingList = useMemo(() => {
-                return livraisons
-                    .filter(l => {
-                        if (trackingStatus === "tous") return true;
-                        if (trackingStatus === "dette") return (l.statutPaiement === "non_paye" || l.statutPaiement === "avance");
-                        if (trackingStatus === "attente") return l.statut === "En attente";
-                        if (trackingStatus === "en cours") return l.statut === "En cours";
-                        if (trackingStatus === "livre") return l.statut === "Livré";
-                        return true;
-                    })
-                    .sort((a,b) => (new Date(a.datePlanif || '9999')) - (new Date(b.datePlanif || '9999')));
-            }, [livraisons, trackingStatus]);
-
-            const formatDateFR = (dateStr) => {
-                if(!dateStr) return "N/A";
-                return new Date(dateStr).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+            const getPaymentColor = (method) => {
+                if (method === "Avance") return "bg-blue-100 text-blue-600 border-blue-200";
+                if (method === "Pas encore payé") return "bg-rose-100 text-rose-600 border-rose-200";
+                return "bg-slate-100 text-slate-600 border-slate-200";
             };
 
-            const updatePaymentStatus = async (id, status, amount = null) => {
-                const data = { statutPaiement: status };
-                if (amount !== null) data.avance = Number(amount);
-                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', id), data);
-                setShowModal(null);
+            const handleReportTomorrow = async (lId) => {
+                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', lId), { 
+                    datePlanif: tomorrowStr 
+                });
             };
 
-            const cloreJournee = async () => {
-                if (clotureLoading) return;
-                setClotureLoading(true);
-                try {
-                    const dateCloture = new Date().toLocaleDateString('fr-FR');
-                    const rapportData = {
-                        date: dateCloture,
-                        revenues: stats.ventes,
-                        depenses: stats.charges,
-                        net: stats.net,
-                        timestamp: serverTimestamp(),
-                        nbVentes: stats.ventesDetails.length
-                    };
-                    
-                    // 1. Enregistrer le rapport
-                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'rapports'), rapportData);
-                    
-                    // 2. Nettoyage optionnel ou simple notification
-                    setToast({ type: 'success', message: 'Journée clôturée avec succès !' });
-                    
-                    // On pourrait vider les dépenses ici si c'est une nouvelle journée
-                } catch (e) {
-                    console.error(e);
-                    setToast({ type: 'error', message: 'Erreur lors de la clôture.' });
-                } finally {
-                    setClotureLoading(false);
+            const handleCustomDate = async (lId, date) => {
+                if(!date) return;
+                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', lId), { 
+                    datePlanif: date 
+                });
+            };
+
+            const handleDeleteOrder = async (lId) => {
+                if(window.confirm("Supprimer définitivement cette commande ?")) {
+                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', lId));
                 }
+            };
+
+            const ModalEdit = () => {
+                if (!editingOrder) return null;
+                return h('div', { className: "fixed inset-0 bg-black/60 z-[100] flex items-end sm:items-center justify-center p-4 animate-fadeIn" },
+                    h('div', { className: "bg-white w-full max-w-md rounded-t-[2.5rem] sm:rounded-[2.5rem] p-8 space-y-6 shadow-2xl" },
+                        h('h3', { className: "font-black text-center uppercase tracking-widest text-slate-400 text-[10px]" }, "Réajustement Livraison"),
+                        h('div', { className: "space-y-4" },
+                            h('div', null,
+                                h('label', { className: "text-[10px] font-black uppercase text-slate-400 mb-1 block" }, "Statut de Livraison"),
+                                h('select', { 
+                                    value: editingOrder.statut || "En attente", 
+                                    onChange: e => setEditingOrder({...editingOrder, statut: e.target.value}),
+                                    className: "w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none border" 
+                                }, ['En attente', 'En cours', 'Livré'].map(s => h('option', { key: s, value: s }, s)))
+                            ),
+                            h('div', null,
+                                h('label', { className: "text-[10px] font-black uppercase text-slate-400 mb-1 block" }, "Montant Total"),
+                                h('input', { 
+                                    type: "number", 
+                                    value: editingOrder.montant || 0, 
+                                    onChange: e => setEditingOrder({...editingOrder, montant: Number(e.target.value)}),
+                                    className: "w-full p-4 bg-slate-50 rounded-2xl font-black text-2xl outline-none border" 
+                                })
+                            )
+                        ),
+                        h('div', { className: "flex gap-2" },
+                            h('button', { onClick: () => setEditingOrder(null), className: "flex-1 py-4 font-black uppercase text-[10px] text-slate-400" }, "Annuler"),
+                            h('button', { 
+                                onClick: async () => {
+                                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', editingOrder.id), { 
+                                        montant: Number(editingOrder.montant) || 0,
+                                        statut: editingOrder.statut || "En attente"
+                                    });
+                                    setEditingOrder(null);
+                                },
+                                className: "flex-[2] bg-slate-900 text-white py-4 rounded-2xl font-black uppercase text-[10px] shadow-lg"
+                            }, "Enregistrer")
+                        )
+                    )
+                );
             };
 
             if (!db) return h('div', { className: "h-screen flex items-center justify-center font-black" }, "CHARGEMENT...");
 
-            return h('div', { className: "min-h-screen bg-slate-50 flex flex-col" },
-                // TOAST NOTIFICATION
-                toast && h('div', { className: `fixed top-4 left-1/2 -translate-x-1/2 z-[200] px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 animate-fadeIn ${toast.type === 'success' ? 'bg-emerald-600 text-white' : 'bg-rose-600 text-white'}` },
-                    h(Icon, { name: toast.type === 'success' ? 'checkCircle' : 'alertCircle', size: 18 }),
-                    h('span', { className: "font-black text-[11px] uppercase" }, toast.message)
-                ),
-
-                h('div', { className: "sticky top-0 z-[100] flex flex-col w-full shadow-sm" },
-                    stats.alertesJ1.length > 0 && h('div', { className: "bg-amber-500 text-white px-4 py-2 flex items-center justify-center gap-3 animate-slide-down border-b border-amber-400/50" },
-                        h(Icon, { name: "alertCircle", size: 14 }),
-                        h('p', { className: "font-black text-[10px] uppercase tracking-tight" }, 
-                            `Demain : ${stats.alertesJ1.length} livraison${stats.alertesJ1.length > 1 ? 's' : ''}`
-                        ),
-                        h('button', { 
-                            onClick: () => { setActiveTab('livraisons'); setTrackingStatus('attente'); },
-                            className: "bg-white/20 px-3 py-1 rounded-full text-[8px] font-black uppercase hover:bg-white/30 transition-all ml-2" 
-                        }, "Voir")
-                    ),
-
-                    h('header', { className: "bg-white px-6 py-4 flex items-center justify-between border-b" },
-                        h('div', { className: "flex items-center gap-2" },
-                            h('div', { className: "w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center text-white font-black italic shadow-lg" }, "R"),
-                            h('span', { className: "font-black text-lg italic uppercase tracking-tighter" }, "Rasoa Pro")
-                        ),
-                        h('div', { className: "flex items-center gap-3" },
-                            h('button', { onClick: () => setShowModal('client'), className: "p-2.5 bg-indigo-50 text-indigo-600 rounded-xl" }, h(Icon, { name: "plus", size: 18 })),
-                            h('button', { onClick: () => setShowModal('depense'), className: "p-2.5 bg-rose-50 text-rose-600 rounded-xl" }, h(Icon, { name: "wallet", size: 18 }))
-                        )
+            return h('div', { className: "min-h-screen bg-slate-50 pb-24" },
+                h(ModalEdit),
+                
+                tomorrowCount > 0 && h('div', { 
+                    onClick: () => { setActiveTab('livraisons'); setDeliveryFilter('Demain'); },
+                    className: "bg-indigo-600 text-white px-4 py-2 flex items-center justify-center gap-2 animate-fadeIn sticky top-0 z-[60] shadow-md cursor-pointer" 
+                },
+                    h(Icon, { name: "bell", size: 14, className: "animate-bounce" }),
+                    h('span', { className: "text-[10px] font-black uppercase tracking-wider" }, 
+                        `${tomorrowCount} livraison${tomorrowCount > 1 ? 's' : ''} prévue${tomorrowCount > 1 ? 's' : ''} pour demain !`
                     )
                 ),
 
-                h('main', { className: "max-w-2xl mx-auto w-full p-4 flex-1 pb-24" },
-                    h('nav', { className: "flex gap-2 mb-8" },
+                h('header', { className: `bg-white px-6 py-4 flex items-center justify-between border-b sticky ${tomorrowCount > 0 ? 'top-[34px]' : 'top-0'} z-50 shadow-sm` },
+                    h('div', { className: "flex items-center gap-2" },
+                        h('div', { className: "w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center text-white font-black italic shadow-lg" }, "R"),
+                        h('span', { className: "font-black text-lg italic uppercase tracking-tighter" }, "Rasoa Pro")
+                    )
+                ),
+
+                h('main', { className: "max-w-xl mx-auto p-4 space-y-6" },
+                    h('nav', { className: "flex gap-2 bg-white p-1 rounded-2xl border shadow-sm" },
                         [
                             {id: 'commandes', label: 'Vente', icon: 'shoppingCart'},
                             {id: 'livraisons', label: 'Suivi', icon: 'truck'},
-                            {id: 'clients', label: 'Clients', icon: 'users'},
-                            {id: 'finances', label: 'Rapports', icon: 'trendingUp'}
+                            {id: 'clients', label: 'Client', icon: 'users'},
+                            {id: 'finances', label: 'Clôture', icon: 'trendingUp'}
                         ].map(tab => h('button', { 
                             key: tab.id, onClick: () => setActiveTab(tab.id),
-                            className: `flex-1 flex items-center justify-center gap-2 py-4 rounded-2xl font-black text-[10px] uppercase border transition-all ${activeTab === tab.id ? 'tab-active shadow-xl' : 'bg-white text-slate-400 border-slate-100'}`
+                            className: `flex-1 flex flex-col items-center gap-1 py-3 rounded-xl font-black text-[9px] uppercase transition-all ${activeTab === tab.id ? 'tab-active shadow-md' : 'text-slate-400'}`
                         }, h(Icon, { name: tab.icon, size: 14 }), tab.label))
                     ),
 
-                    activeTab === 'commandes' && h('div', { className: "bg-white p-8 rounded-[2.5rem] shadow-xl border border-slate-100 animate-fadeIn" },
-                        h('div', { className: "flex justify-center gap-6 mb-8" },
-                            h('button', { onClick: () => setOrderForm({...orderForm, source: 'Facebook'}), className: `flex-1 flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${orderForm.source === 'Facebook' ? 'source-btn-active' : 'border-transparent opacity-40 grayscale'}` }, h(Icon, { name: "facebook", size: 32 }), h('span', { className: "text-[8px] font-black" }, "FACEBOOK")),
-                            h('button', { onClick: () => setOrderForm({...orderForm, source: 'TikTok'}), className: `flex-1 flex flex-col items-center gap-2 p-4 rounded-2xl border-2 transition-all ${orderForm.source === 'TikTok' ? 'source-btn-active-tk' : 'border-transparent opacity-40 grayscale'}` }, h(Icon, { name: "tiktok", size: 32 }), h('span', { className: "text-[8px] font-black" }, "TIKTOK"))
-                        ),
-                        h('div', { className: "space-y-4 relative" },
-                            h('div', { className: "relative" },
+                    activeTab === 'commandes' && h('div', { className: "animate-fadeIn" },
+                        h('div', { className: "bg-white p-6 rounded-[2.5rem] shadow-xl border border-slate-100" },
+                            h('div', { className: "flex items-center justify-between mb-6" },
+                                h('h2', { className: "font-black uppercase text-[11px] tracking-widest text-slate-400" }, "Nouvelle Commande"),
+                                h('select', { 
+                                    value: orderForm.source, 
+                                    onChange: e => setOrderForm({...orderForm, source: e.target.value}),
+                                    className: "bg-slate-100 px-3 py-1 rounded-full text-[10px] font-bold outline-none" 
+                                }, ['Facebook', 'TikTok', 'Direct'].map(s => h('option', { key: s, value: s }, s)))
+                            ),
+                            h('div', { className: "space-y-4 relative" },
                                 h('input', { 
                                     value: clientSearch, 
                                     onChange: e => { setClientSearch(e.target.value); setOrderForm({...orderForm, nom: e.target.value}); setShowSuggestions(true); },
-                                    placeholder: "Nom du client...", 
-                                    className: "w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none border border-transparent focus:border-indigo-100" 
+                                    placeholder: "Nom du client", 
+                                    className: "w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none border border-transparent focus:border-slate-200" 
                                 }),
-                                (showSuggestions && clients.filter(c => c.nom?.toLowerCase().includes(clientSearch.toLowerCase())).length > 0) && h('div', { className: "absolute top-full left-0 right-0 mt-2 bg-white border rounded-2xl shadow-2xl z-[60] overflow-hidden" },
+                                (showSuggestions && clientSearch && clients.filter(c => c.nom?.toLowerCase().includes(clientSearch.toLowerCase())).length > 0) && h('div', { className: "absolute top-20 left-0 right-0 bg-white border rounded-2xl shadow-2xl z-[60]" },
                                     clients.filter(c => c.nom?.toLowerCase().includes(clientSearch.toLowerCase())).slice(0,5).map(c => h('button', {
                                         key: c.id, onClick: () => { 
-                                            setOrderForm({ ...orderForm, nom: c.nom, lieu: c.adresse || "", source: c.source || orderForm.source }); 
-                                            setClientSearch(c.nom); setShowSuggestions(false); 
+                                            setOrderForm({...orderForm, nom: c.nom, telephone: c.telephone || "", lieu: c.adresse || ""}); 
+                                            setClientSearch(c.nom); 
+                                            setShowSuggestions(false); 
                                         },
-                                        className: "w-full p-4 text-left border-b last:border-0 hover:bg-slate-50 flex items-center justify-between"
+                                        className: "w-full p-4 text-left border-b last:border-0 hover:bg-slate-50 font-bold flex justify-between items-center"
                                     }, 
-                                        h('div', null,
-                                            h('p', { className: "font-black text-xs uppercase" }, c.nom),
-                                            h('p', { className: "text-[9px] text-slate-400 font-bold" }, c.adresse || "Pas d'adresse")
-                                        ),
-                                        h(Icon, { name: (c.source || 'Facebook').toLowerCase(), size: 14, className: "text-slate-300" })
+                                        h('span', null, c.nom),
+                                        h('div', { className: "flex items-center gap-2" },
+                                            h('span', { className: "text-[10px] text-slate-400 font-normal" }, c.telephone)
+                                        )
                                     ))
-                                )
-                            ),
-                            h('div', { className: "grid grid-cols-2 gap-3" },
-                                h('input', { value: orderForm.lieu, onChange: e => setOrderForm({...orderForm, lieu: e.target.value}), placeholder: "Lieu livraison", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none" }),
-                                h('input', { type: "date", value: orderForm.datePlanif, onChange: e => setOrderForm({...orderForm, datePlanif: e.target.value}), className: "w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none text-slate-500 uppercase text-[10px]" })
-                            ),
-                            h('div', { className: "bg-slate-50 p-4 rounded-2xl space-y-3 border border-slate-100" },
-                                h('p', { className: "text-[9px] font-black uppercase text-slate-400" }, "Paiement :"),
-                                h('div', { className: "flex gap-2" },
-                                    ['payé', 'avance', 'non_paye'].map(id => h('button', {
-                                        key: id, onClick: () => setOrderForm({...orderForm, statutPaiement: id}),
-                                        className: `flex-1 py-3 rounded-xl font-black text-[9px] uppercase border-2 transition-all ${orderForm.statutPaiement === id ? 'border-indigo-500 bg-indigo-50 text-indigo-600' : 'border-white bg-white text-slate-300'}`
-                                    }, id.replace('_', ' ')))
                                 ),
-                                orderForm.statutPaiement === 'avance' && h('input', {
-                                    type: "number", value: orderForm.avance, onChange: e => setOrderForm({...orderForm, avance: e.target.value}),
-                                    placeholder: "Montant avance", className: "w-full p-3 bg-white rounded-xl border-2 border-indigo-100 font-bold outline-none"
-                                })
-                            ),
-                            h('input', { type: "number", value: orderForm.montant, onChange: e => setOrderForm({...orderForm, montant: e.target.value}), placeholder: "Montant Total Ar", className: "w-full p-5 bg-slate-50 rounded-2xl font-black text-slate-900 text-3xl outline-none" }),
-                            h('button', {
-                                onClick: async () => {
-                                    if(!orderForm.nom || !orderForm.montant) return;
-                                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'livraisons'), { 
-                                        ...orderForm, montant: Number(orderForm.montant), avance: Number(orderForm.avance || 0), statut: "En attente", timestamp: serverTimestamp() 
-                                    });
-                                    setOrderForm({ nom: "", montant: "", lieu: "", source: orderForm.source, datePlanif: "", statutPaiement: "payé", avance: "" });
-                                    setClientSearch(""); setActiveTab("livraisons");
-                                },
-                                className: "w-full bg-slate-900 text-white py-5 rounded-3xl font-black uppercase text-[11px] shadow-xl mt-4"
-                            }, "Enregistrer la vente")
+                                h('input', { value: orderForm.telephone, onChange: e => setOrderForm({...orderForm, telephone: e.target.value}), placeholder: "N° Téléphone", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none" }),
+                                h('input', { value: orderForm.lieu, onChange: e => setOrderForm({...orderForm, lieu: e.target.value}), placeholder: "Lieu de livraison", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none" }),
+                                h('div', { className: "grid grid-cols-2 gap-3" },
+                                    h('input', { type: "date", value: orderForm.datePlanif, onChange: e => setOrderForm({...orderForm, datePlanif: e.target.value}), className: "p-4 bg-slate-50 rounded-2xl font-bold outline-none" }),
+                                    h('select', { value: orderForm.paiement, onChange: e => setOrderForm({...orderForm, paiement: e.target.value}), className: "p-4 bg-slate-50 rounded-2xl font-bold outline-none" }, ['Paiement sur livraison', 'Avance', 'Pas encore payé'].map(p => h('option', { key: p, value: p }, p)))
+                                ),
+                                h('input', { type: "number", value: orderForm.montant, onChange: e => setOrderForm({...orderForm, montant: e.target.value}), placeholder: "Montant Total Ar", className: "w-full p-5 bg-slate-50 rounded-2xl font-black text-slate-900 text-3xl outline-none" }),
+                                h('button', {
+                                    onClick: async () => {
+                                        if(!orderForm.nom || !orderForm.montant) return;
+                                        // MODIFICATION : Les commandes partent en "En attente" par défaut
+                                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'livraisons'), { 
+                                            ...orderForm, montant: Number(orderForm.montant) || 0, statut: "En attente", timestamp: serverTimestamp() 
+                                        });
+                                        setOrderForm({ nom: "", telephone: "", montant: "", avance: 0, lieu: "", source: "Facebook", paiement: "Paiement sur livraison", datePlanif: new Date().toISOString().split('T')[0] }); 
+                                        setClientSearch("");
+                                    },
+                                    className: "w-full bg-slate-900 text-white py-5 rounded-3xl font-black uppercase text-[11px] shadow-xl mt-4"
+                                }, "Valider la Commande")
+                            )
                         )
                     ),
 
-                    activeTab === 'livraisons' && h('div', { className: "space-y-6 animate-fadeIn" },
-                        h('div', { className: "flex gap-2 overflow-x-auto no-scrollbar pb-2" },
-                            [
-                                { id: 'tous', label: 'Tout', count: livraisons.length },
-                                { id: 'attente', label: 'Attente', count: stats.countAttente },
-                                { id: 'en cours', label: 'En cours', count: stats.countEnCours },
-                                { id: 'dette', label: 'Dettes', count: stats.countDette },
-                                { id: 'livre', label: 'Livrés', count: stats.countLivre }
-                            ].map(s => h('button', { 
-                                key: s.id, onClick: () => setTrackingStatus(s.id),
-                                className: `px-5 py-3 rounded-2xl border font-black text-[9px] uppercase transition-all flex-shrink-0 flex items-center gap-2 ${trackingStatus === s.id ? 'bg-indigo-50 border-indigo-200 text-indigo-600 shadow-sm' : 'bg-white border-slate-100 text-slate-400'}`
-                            }, s.label, h('span', { className: "px-2 py-0.5 rounded-full text-[8px] bg-indigo-100/50" }, s.count)))
+                    activeTab === 'livraisons' && h('div', { className: "space-y-4 animate-fadeIn" },
+                        h('div', { className: "flex gap-2 overflow-x-auto pb-2 scrollbar-hide" },
+                            ['En attente', 'En cours', 'Livré', 'Demain', 'Pas encore payé'].map(f => h('button', {
+                                key: f, onClick: () => setDeliveryFilter(f),
+                                className: `whitespace-nowrap px-4 py-2.5 rounded-full border font-black text-[10px] uppercase transition-all ${deliveryFilter === f ? 'filter-active shadow-md' : 'bg-white text-slate-400 border-slate-100'}`
+                            }, f === 'Demain' ? `🔥 Demain (${counts[f]})` : `${f} (${counts[f]})`))
                         ),
-                        h('div', { className: "space-y-3" },
-                            trackingList.map(l => h('div', { key: l.id, className: "bg-white p-5 rounded-[2rem] border shadow-sm" },
-                                h('div', { className: "flex justify-between items-start" },
-                                    h('div', null,
-                                        h('p', { className: "font-black text-[12px] uppercase mb-1" }, l.nom),
-                                        h('div', { className: "flex items-center gap-2 text-slate-400 text-[10px] font-bold" }, h(Icon, { name: "calendar", size: 10 }), formatDateFR(l.datePlanif))
+
+                        filteredLivraisons.length === 0 ? h('div', { className: "py-20 text-center opacity-20 font-black uppercase tracking-widest text-[10px]" }, "Aucune livraison") :
+                        filteredLivraisons.map(l => h('div', { key: l.id, className: "bg-white p-6 rounded-[2.5rem] border shadow-sm flex flex-col gap-4 relative" },
+                            h('div', { className: "flex items-start justify-between" },
+                                h('div', { className: "space-y-1" },
+                                    h('div', { className: "flex items-center gap-2 flex-wrap" },
+                                        h('p', { className: "font-black text-[13px] uppercase" }, l.nom),
+                                        l.source === "Facebook" && h('span', { className: "text-[#1877F2]" }, h(Icon, { name: "facebook", size: 14 })),
+                                        l.source === "TikTok" && h('span', { className: "text-black" }, h(Icon, { name: "tiktok", size: 14 })),
+                                        l.paiement && h('span', { className: `text-[8px] font-black px-2 py-0.5 rounded-full border ${getPaymentColor(l.paiement || "Paiement sur livraison")}` }, l.paiement)
                                     ),
-                                    h('div', { className: "flex flex-col items-end gap-1" },
-                                        h('div', { className: "flex items-center gap-2" },
-                                            h(Icon, { name: (l.source || 'Facebook').toLowerCase(), size: 10, className: "text-slate-300" }),
-                                            h('span', { 
-                                                onClick: () => {
-                                                    const next = l.statut === 'En attente' ? 'En cours' : (l.statut === 'En cours' ? 'Livré' : 'En attente');
-                                                    updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', l.id), { statut: next });
-                                                },
-                                                className: `px-3 py-1 rounded-full text-[8px] font-black uppercase cursor-pointer ${l.statut === 'En attente' ? 'bg-blue-100 text-blue-600' : l.statut === 'En cours' ? 'bg-indigo-100 text-indigo-600' : 'bg-green-100 text-green-600'}` 
-                                            }, l.statut)
-                                        ),
-                                        (l.statutPaiement === 'non_paye' || l.statutPaiement === 'avance') && h('span', { className: "bg-orange-100 text-orange-600 text-[7px] font-black px-2 py-0.5 rounded-full uppercase" }, l.statutPaiement === 'avance' ? "Payé en partie" : "Dette")
-                                    )
+                                    h('p', { className: "font-black text-slate-900 text-lg" }, `${Number(l.montant || 0).toLocaleString()} Ar`),
                                 ),
-                                h('div', { className: "flex justify-between items-center mt-4 pt-3 border-t" },
-                                    h('div', null,
-                                        h('p', { className: "font-black text-slate-900 text-base" }, `${(l.montant || 0).toLocaleString()} Ar`),
-                                        l.statutPaiement === 'avance' && h('p', { className: "text-[9px] font-bold text-orange-500 bg-orange-50 px-2 py-0.5 rounded inline-block mt-1" }, `Reste : ${(l.montant - (l.avance || 0)).toLocaleString()} Ar`)
+                                h('div', { className: "flex gap-2" },
+                                    h('button', { onClick: () => setEditingOrder(l), className: "p-3 bg-slate-50 text-slate-400 rounded-2xl" }, h(Icon, { name: "edit", size: 18 })),
+                                    
+                                    // ACTION : De En attente -> En cours
+                                    (l.statut === "En attente" || !l.statut) && h('button', { 
+                                        onClick: () => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', l.id), { statut: 'En cours' }), 
+                                        className: "p-3 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center gap-1" 
+                                    }, h(Icon, { name: "arrowRight", size: 18 })),
+
+                                    // ACTION : De En cours -> Livré
+                                    l.statut === "En cours" && h('button', { 
+                                        onClick: () => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', l.id), { statut: 'Livré' }), 
+                                        className: "p-3 bg-emerald-50 text-emerald-600 rounded-2xl" 
+                                    }, h(Icon, { name: "check", size: 18 }))
+                                )
+                            ),
+                            
+                            h('div', { className: "grid grid-cols-1 gap-2 pt-3 border-t border-slate-50" },
+                                h('div', { className: "flex items-center gap-3 text-slate-500" },
+                                    h(Icon, { name: "mapPin", size: 14, className: "shrink-0" }),
+                                    h('span', { className: "font-bold text-[11px]" }, l.lieu || "Non précisé")
+                                ),
+                                h('div', { className: "flex items-center gap-3 text-slate-500" },
+                                    h(Icon, { name: "phone", size: 14, className: "shrink-0 text-emerald-500" }),
+                                    h('a', { href: `tel:${l.telephone}`, className: "font-black text-[12px] text-slate-900" }, l.telephone || "---")
+                                ),
+                                
+                                h('div', { className: "flex flex-wrap gap-2 mt-2 py-2" },
+                                    h('button', { 
+                                        onClick: () => handleReportTomorrow(l.id),
+                                        className: "flex items-center gap-1.5 px-3 py-2 bg-indigo-50 text-indigo-700 rounded-xl font-black text-[9px] uppercase border border-indigo-100"
+                                    }, h(Icon, { name: "refresh", size: 12 }), "Reporter"),
+                                    
+                                    h('div', { className: "flex items-center gap-1.5 px-3 py-2 bg-slate-50 text-slate-600 rounded-xl border border-slate-100" },
+                                        h(Icon, { name: "calendar", size: 12 }),
+                                        h('input', { 
+                                            type: "date", 
+                                            onChange: (e) => handleCustomDate(l.id, e.target.value),
+                                            className: "bg-transparent font-black text-[9px] uppercase outline-none"
+                                        })
                                     ),
-                                    h('div', { className: "flex gap-2" },
-                                        (l.statutPaiement === 'non_paye' || l.statutPaiement === 'avance') && h('div', { className: "flex gap-1" },
-                                            h('button', { onClick: () => updatePaymentStatus(l.id, 'payé'), className: "p-2.5 bg-emerald-50 text-emerald-600 rounded-xl" }, h(Icon, { name: "check", size: 16 })),
-                                            h('button', { onClick: () => { setPartialPayment({ id: l.id, amount: l.avance || "" }); setShowModal('partial_payment'); }, className: "p-2.5 bg-blue-50 text-blue-600 rounded-xl" }, h(Icon, { name: "edit", size: 16 }))
-                                        ),
-                                        l.statut !== 'Livré' && h('button', {
-                                            onClick: () => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', l.id), { statut: 'Livré' }),
-                                            className: "px-5 py-2.5 bg-slate-900 text-white rounded-xl text-[9px] font-black uppercase shadow-lg shadow-slate-200"
-                                        }, "Valider"),
-                                        h('button', { onClick: () => deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', l.id)), className: "p-2.5 text-rose-300 hover:text-rose-500 transition-colors" }, h(Icon, { name: "trash", size: 14 }))
-                                    )
+
+                                    h('button', { 
+                                        onClick: () => handleDeleteOrder(l.id),
+                                        className: "flex items-center gap-1.5 px-3 py-2 bg-rose-50 text-rose-600 rounded-xl font-black text-[9px] uppercase border border-rose-100 ml-auto"
+                                    }, h(Icon, { name: "trash", size: 12 }), "Effacer")
+                                ),
+
+                                h('div', { className: "mt-1 flex items-center justify-between" },
+                                    h('span', { className: "text-[9px] font-black uppercase text-slate-300" }, `Date : ${l.datePlanif}`),
+                                    h('span', { className: "text-[9px] font-black uppercase px-2 py-1 bg-slate-900 text-white rounded-lg" }, l.statut || "En attente")
+                                )
+                            )
+                        ))
+                    ),
+
+                    activeTab === 'clients' && h('div', { className: "space-y-6 animate-fadeIn" },
+                        h('div', { className: "bg-white p-6 rounded-[2rem] border shadow-xl" },
+                            h('h3', { className: "font-black uppercase text-[11px] mb-4 text-slate-900 tracking-widest" }, "Nouveau Client"),
+                            h('div', { className: "space-y-4" },
+                                h('input', { value: clientForm.nom, onChange: e => setClientForm({...clientForm, nom: e.target.value}), placeholder: "Nom du client", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none border border-transparent focus:border-slate-200" }),
+                                h('input', { value: clientForm.telephone, onChange: e => setClientForm({...clientForm, telephone: e.target.value}), placeholder: "N° Téléphone", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none border border-transparent focus:border-slate-200" }),
+                                h('input', { value: clientForm.adresse, onChange: e => setClientForm({...clientForm, adresse: e.target.value}), placeholder: "Quartier", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none border border-transparent focus:border-slate-200" }),
+                                h('button', {
+                                    onClick: async () => {
+                                        if(!clientForm.nom) return;
+                                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'clients'), { 
+                                            ...clientForm, timestamp: serverTimestamp() 
+                                        });
+                                        setClientForm({ nom: "", telephone: "", adresse: "", source: "Facebook" });
+                                    },
+                                    className: "w-full bg-slate-900 text-white py-4 rounded-2xl font-black uppercase text-[11px]"
+                                }, "Sauvegarder Client")
+                            )
+                        ),
+
+                        h('div', { className: "space-y-3" },
+                            clients.map(c => h('div', { key: c.id, className: "bg-white p-5 rounded-3xl border shadow-sm flex items-start gap-4" },
+                                h('div', { className: `p-3 rounded-2xl bg-blue-50 text-blue-600` }, h(Icon, { name: "users", size: 18 })),
+                                h('div', { className: "flex-1" },
+                                    h('div', { className: "flex items-center justify-between" },
+                                        h('p', { className: "font-black text-slate-900 uppercase text-[12px]" }, c.nom),
+                                        h('button', { onClick: () => deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'clients', c.id)), className: "text-slate-200 hover:text-rose-500" }, h(Icon, { name: "trash", size: 14 }))
+                                    ),
+                                    h('p', { className: "text-slate-500 text-[10px] font-bold" }, `${c.telephone || '---'} | ${c.adresse || '---'}`)
                                 )
                             ))
                         )
                     ),
 
-                    activeTab === 'clients' && h('div', { className: "space-y-4 animate-fadeIn" },
-                        clients.length === 0 ? h('div', { className: "p-10 text-center text-slate-300 font-black uppercase text-[10px]" }, "Aucun client") :
-                        clients.map(c => h('div', { key: c.id, className: "bg-white p-6 rounded-[2.5rem] border shadow-sm flex items-center justify-between" },
-                            h('div', { className: "flex items-center gap-4" },
-                                h('div', { className: `w-12 h-12 rounded-2xl flex items-center justify-center ${c.source === 'TikTok' ? 'bg-slate-100 text-slate-900 shadow-inner' : 'bg-indigo-50 text-indigo-600'}` },
-                                    h(Icon, { name: (c.source || 'Facebook').toLowerCase(), size: 20 })
-                                ),
-                                h('div', null,
-                                    h('p', { className: "font-black text-[12px] uppercase mb-1" }, c.nom),
-                                    h('div', { className: "flex flex-col gap-0.5" },
-                                        h('p', { className: "text-[10px] font-bold text-indigo-500" }, c.tel),
-                                        c.adresse && h('div', { className: "flex items-center gap-1 text-[9px] text-slate-400 font-bold" },
-                                            h(Icon, { name: "mapPin", size: 10 }),
-                                            h('span', null, c.adresse)
-                                        )
-                                    )
-                                )
-                            ),
-                            h('button', { onClick: () => deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'clients', c.id)), className: "p-3 text-rose-200 hover:text-rose-500 transition-colors" }, h(Icon, { name: "trash", size: 14 }))
-                        ))
-                    ),
-
                     activeTab === 'finances' && h('div', { className: "space-y-6 animate-fadeIn" },
                         h('div', { className: "bg-slate-900 p-8 rounded-[2.5rem] text-white shadow-2xl" },
-                            h('p', { className: "text-[10px] font-black uppercase opacity-60 mb-1" }, "Cash Réel En Main"),
-                            h('p', { className: "text-4xl font-black tracking-tighter mb-6" }, `${stats.net.toLocaleString()} Ar`),
-                            h('div', { className: "flex gap-4 border-t border-white/10 pt-6" },
-                                h('div', { className: "flex-1" }, h('p', { className: "text-[8px] font-bold uppercase opacity-50" }, "Encaissé"), h('p', { className: "font-black" }, `${stats.ventes.toLocaleString()} Ar`)),
-                                h('div', { className: "flex-1" }, h('p', { className: "text-[8px] font-bold uppercase opacity-50 text-rose-400" }, "Dépenses"), h('p', { className: "font-black text-rose-400" }, `${stats.charges.toLocaleString()} Ar`))
+                            h('p', { className: "text-[10px] font-black uppercase opacity-60 mb-1" }, "Recette Nette"),
+                            h('p', { className: "text-4xl font-black tracking-tighter" }, `${stats.net.toLocaleString()} Ar`),
+                            h('div', { className: "flex gap-4 mt-6 border-t border-white/10 pt-6" },
+                                h('div', { className: "flex-1" }, h('p', { className: "text-[8px] font-bold opacity-50 uppercase" }, "Ventes"), h('p', { className: "font-black" }, `${stats.encaisse.toLocaleString()} Ar`)),
+                                h('div', { className: "flex-1" }, h('p', { className: "text-[8px] font-bold opacity-50 uppercase" }, "Dépenses"), h('p', { className: "font-black text-rose-400" }, `${stats.charges.toLocaleString()} Ar`))
                             )
                         ),
-                        
-                        h('div', { className: "bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm" },
-                            h('div', { className: "flex items-center gap-2 mb-6" },
-                                h(Icon, { name: "history", size: 16, className: "text-indigo-600" }),
-                                h('h3', { className: "font-black uppercase text-[11px] tracking-wider" }, "Historique des ventes livrées")
-                            ),
-                            h('div', { className: "space-y-4 max-h-[300px] overflow-y-auto no-scrollbar" },
-                                stats.ventesDetails.length === 0 ? h('p', { className: "text-center py-4 text-slate-300 font-bold uppercase text-[9px]" }, "Aucune vente livrée") :
-                                stats.ventesDetails.map(v => h('div', { key: v.id, className: "flex items-center justify-between py-3 border-b border-slate-50 last:border-0" },
-                                    h('div', null,
-                                        h('p', { className: "font-black text-[11px] uppercase" }, v.nom),
-                                        h('div', { className: "flex items-center gap-2 text-[9px] text-slate-400 font-bold" },
-                                            h(Icon, { name: (v.source || 'Facebook').toLowerCase(), size: 8 }),
-                                            h('span', null, formatDateFR(v.datePlanif))
-                                        )
-                                    ),
-                                    h('p', { className: "font-black text-indigo-600 text-[12px]" }, `${(v.montant || 0).toLocaleString()} Ar`)
-                                ))
+                        h('div', { className: "bg-white p-6 rounded-[2rem] border border-rose-100 shadow-sm" },
+                            h('h3', { className: "font-black uppercase text-[11px] mb-4 text-rose-600" }, "Nouvelle Dépense"),
+                            h('div', { className: "space-y-3" },
+                                h('input', { value: expenseForm.titre, onChange: e => setExpenseForm({...expenseForm, titre: e.target.value}), placeholder: "Motif", className: "w-full p-3 bg-slate-50 rounded-xl font-bold border" }),
+                                h('input', { type: "number", value: expenseForm.montant, onChange: e => setExpenseForm({...expenseForm, montant: e.target.value}), placeholder: "Montant Ar", className: "w-full p-3 bg-slate-50 rounded-xl font-bold border" }),
+                                h('button', {
+                                    onClick: async () => {
+                                        if(!expenseForm.titre || !expenseForm.montant) return;
+                                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'depenses'), { 
+                                            montant: Number(expenseForm.montant) || 0, titre: expenseForm.titre || "", timestamp: serverTimestamp() 
+                                        });
+                                        setExpenseForm({ titre: "", montant: "" });
+                                    },
+                                    className: "w-full bg-rose-600 text-white py-3 rounded-xl font-black uppercase text-[9px]"
+                                }, "Enregistrer Dépense")
                             )
-                        ),
-
-                        h('button', { 
-                            onClick: cloreJournee, 
-                            disabled: clotureLoading,
-                            className: `w-full ${clotureLoading ? 'bg-slate-400' : 'bg-emerald-600'} text-white p-5 rounded-3xl font-black uppercase text-[11px] shadow-xl flex items-center justify-center gap-3 transition-all` 
-                        }, 
-                            clotureLoading ? "Traitement..." : "Clôturer la journée",
-                            !clotureLoading && h(Icon, { name: "checkCircle", size: 16 })
                         )
-                    )
-                ),
-
-                // MODAL PAIEMENT PARTIEL
-                h(Modal, { isOpen: showModal === 'partial_payment', onClose: () => setShowModal(null), title: "Paiement Partiel" },
-                    h('div', { className: "space-y-4" },
-                        h('p', { className: "text-[10px] font-bold text-slate-400 uppercase" }, "Entrez le montant de l'avance reçu :"),
-                        h('input', { 
-                            type: "number", 
-                            value: partialPayment.amount, 
-                            onChange: e => setPartialPayment({...partialPayment, amount: e.target.value}), 
-                            placeholder: "Montant avance", 
-                            className: "w-full p-5 bg-slate-50 rounded-2xl font-black text-blue-600 text-2xl outline-none" 
-                        }),
-                        h('div', { className: "flex gap-2" },
-                            h('button', {
-                                onClick: () => updatePaymentStatus(partialPayment.id, 'avance', partialPayment.amount),
-                                className: "flex-1 bg-slate-900 text-white py-5 rounded-3xl font-black uppercase text-[10px]"
-                            }, "Enregistrer"),
-                            h('button', {
-                                onClick: () => updatePaymentStatus(partialPayment.id, 'payé'),
-                                className: "flex-1 bg-emerald-600 text-white py-5 rounded-3xl font-black uppercase text-[10px]"
-                            }, "Tout Payé")
-                        )
-                    )
-                ),
-
-                h(Modal, { isOpen: showModal === 'client', onClose: () => setShowModal(null), title: "Ajouter un client" },
-                    h('div', { className: "space-y-4" },
-                        h('div', { className: "flex gap-3 mb-2" },
-                            ['Facebook', 'TikTok'].map(s => h('button', {
-                                key: s, onClick: () => setClientForm({...clientForm, source: s}),
-                                className: `flex-1 py-4 rounded-2xl border-2 flex flex-col items-center gap-2 transition-all ${clientForm.source === s ? (s === 'Facebook' ? 'source-btn-active' : 'source-btn-active-tk') : 'border-slate-50 opacity-40 grayscale'}`
-                            }, h(Icon, { name: s.toLowerCase(), size: 24 }), h('span', { className: "text-[8px] font-black uppercase" }, s)))
-                        ),
-                        h('input', { value: clientForm.nom, onChange: e => setClientForm({...clientForm, nom: e.target.value}), placeholder: "Nom complet", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none border border-transparent focus:border-indigo-100" }),
-                        h('input', { value: clientForm.tel, onChange: e => setClientForm({...clientForm, tel: e.target.value}), placeholder: "Numéro de téléphone", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none" }),
-                        h('input', { value: clientForm.adresse, onChange: e => setClientForm({...clientForm, adresse: e.target.value}), placeholder: "Lieu / Quartier", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none" }),
-                        h('button', {
-                            onClick: async () => {
-                                if(!clientForm.nom) return;
-                                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'clients'), { ...clientForm, timestamp: serverTimestamp() });
-                                setClientForm({ nom: "", tel: "", adresse: "", source: "Facebook" }); setShowModal(null);
-                            },
-                            className: "w-full bg-slate-900 text-white py-5 rounded-3xl font-black uppercase text-[10px] shadow-lg mt-2"
-                        }, "Enregistrer")
-                    )
-                ),
-
-                h(Modal, { isOpen: showModal === 'depense', onClose: () => setShowModal(null), title: "Nouvelle Dépense" },
-                    h('div', { className: "space-y-4" },
-                        h('input', { value: depenseForm.titre, onChange: e => setDepenseForm({...depenseForm, titre: e.target.value}), placeholder: "Motif", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold outline-none" }),
-                        h('input', { type: "number", value: depenseForm.montant, onChange: e => setDepenseForm({...depenseForm, montant: e.target.value}), placeholder: "Montant Ar", className: "w-full p-5 bg-slate-50 rounded-2xl font-black text-rose-600 text-2xl outline-none" }),
-                        h('button', {
-                            onClick: async () => {
-                                if(!depenseForm.titre || !depenseForm.montant) return;
-                                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'depenses'), { ...depenseForm, montant: Number(depenseForm.montant), timestamp: serverTimestamp() });
-                                setDepenseForm({ titre: "", montant: "" }); setShowModal(null);
-                            },
-                            className: "w-full bg-rose-600 text-white py-5 rounded-3xl font-black uppercase text-[10px]"
-                        }, "Confirmer")
                     )
                 )
             );
