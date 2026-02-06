@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rasoa Pro - V6.0</title>
+    <title>Rasoa Pro - V7.1</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -58,6 +58,9 @@
                 bell: h('path', { d: "M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9 M10.3 21a1.94 1.94 0 0 0 3.4 0" }),
                 calendar: h('path', { d: "M19 4H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2z M16 2v4 M8 2v4 M3 10h18" }),
                 refresh: h('path', { d: "M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" }),
+                fileText: h('path', { d: "M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2zM14 2v6h6M16 13H8M16 17H8M10 9H8" }),
+                chevronRight: h('path', { d: "m9 18 6-6-6-6" }),
+                close: h('path', { d: "M18 6 6 18M6 6l12 12" }),
             };
             return h('svg', { 
                 width: size, height: size, viewBox: "0 0 24 24", fill: "none", 
@@ -72,7 +75,10 @@
             const [livraisons, setLivraisons] = useState([]);
             const [clients, setClients] = useState([]);
             const [depenses, setDepenses] = useState([]);
-            const [deliveryFilter, setDeliveryFilter] = useState("En attente"); // Filtre par défaut sur En attente
+            const [deliveryFilter, setDeliveryFilter] = useState("En attente");
+
+            const [showReport, setShowReport] = useState(false);
+            const [reportDate, setReportDate] = useState(new Date().toISOString().split('T')[0]);
 
             const [orderForm, setOrderForm] = useState({ 
                 nom: "", telephone: "", montant: "", avance: 0,
@@ -82,7 +88,7 @@
 
             const [editingOrder, setEditingOrder] = useState(null);
             const [clientForm, setClientForm] = useState({ nom: "", telephone: "", adresse: "", source: "Facebook" });
-            const [expenseForm, setExpenseForm] = useState({ titre: "", montant: "" });
+            const [expenseForm, setExpenseForm] = useState({ titre: "", montant: "", date: new Date().toISOString().split('T')[0] });
             const [clientSearch, setClientSearch] = useState("");
             const [showSuggestions, setShowSuggestions] = useState(false);
 
@@ -121,15 +127,9 @@
             }, [livraisons, tomorrowCount]);
 
             const filteredLivraisons = useMemo(() => {
-                if (deliveryFilter === "Pas encore payé") {
-                    return livraisons.filter(l => l.paiement === "Pas encore payé");
-                }
-                if (deliveryFilter === "Demain") {
-                    return livraisons.filter(l => l.datePlanif === tomorrowStr);
-                }
-                if (deliveryFilter === "En attente") {
-                    return livraisons.filter(l => (l.statut === "En attente" || !l.statut));
-                }
+                if (deliveryFilter === "Pas encore payé") return livraisons.filter(l => l.paiement === "Pas encore payé");
+                if (deliveryFilter === "Demain") return livraisons.filter(l => l.datePlanif === tomorrowStr);
+                if (deliveryFilter === "En attente") return livraisons.filter(l => (l.statut === "En attente" || !l.statut));
                 return livraisons.filter(l => l.statut === deliveryFilter);
             }, [livraisons, deliveryFilter, tomorrowStr]);
 
@@ -137,8 +137,16 @@
                 const livrees = livraisons.filter(l => l.statut === "Livré");
                 const totalRevenu = livrees.reduce((acc, l) => acc + (Number(l.montant) || 0), 0);
                 const charges = depenses.reduce((acc, c) => acc + (Number(c.montant) || 0), 0);
-                return { net: totalRevenu - charges, encaisse: totalRevenu, charges, livrees };
+                return { net: totalRevenu - charges, encaisse: totalRevenu, charges };
             }, [livraisons, depenses]);
+
+            const dayReport = useMemo(() => {
+                const sales = livraisons.filter(l => l.statut === "Livré" && l.datePlanif === reportDate);
+                const dayExp = depenses.filter(d => d.date === reportDate);
+                const revenue = sales.reduce((acc, l) => acc + (Number(l.montant) || 0), 0);
+                const expenseTotal = dayExp.reduce((acc, d) => acc + (Number(d.montant) || 0), 0);
+                return { revenue, expenseTotal, net: revenue - expenseTotal, sales };
+            }, [livraisons, depenses, reportDate]);
 
             const getPaymentColor = (method) => {
                 if (method === "Avance") return "bg-blue-100 text-blue-600 border-blue-200";
@@ -147,22 +155,57 @@
             };
 
             const handleReportTomorrow = async (lId) => {
-                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', lId), { 
-                    datePlanif: tomorrowStr 
-                });
+                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', lId), { datePlanif: tomorrowStr });
             };
 
             const handleCustomDate = async (lId, date) => {
                 if(!date) return;
-                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', lId), { 
-                    datePlanif: date 
-                });
+                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', lId), { datePlanif: date });
             };
 
-            const handleDeleteOrder = async (lId) => {
-                if(window.confirm("Supprimer définitivement cette commande ?")) {
-                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', lId));
-                }
+            const ModalReport = () => {
+                if (!showReport) return null;
+                return h('div', { className: "fixed inset-0 bg-slate-900/95 z-[200] flex flex-col animate-fadeIn" },
+                    h('div', { className: "p-6 flex items-center justify-between border-b border-white/10" },
+                        h('div', { className: "flex flex-col" },
+                            h('h2', { className: "text-white font-black uppercase text-lg tracking-tight" }, "Rapport Journalier"),
+                            h('input', { 
+                                type: "date", 
+                                value: reportDate, 
+                                onChange: e => setReportDate(e.target.value),
+                                className: "bg-transparent text-slate-400 font-bold outline-none text-[12px] border-none p-0 mt-1"
+                            })
+                        ),
+                        h('button', { onClick: () => setShowReport(false), className: "w-10 h-10 bg-white/10 rounded-full flex items-center justify-center text-white" }, h(Icon, { name: "close", size: 20 }))
+                    ),
+                    h('div', { className: "flex-1 overflow-y-auto p-6 space-y-6" },
+                        h('div', { className: "grid grid-cols-3 gap-3" },
+                            h('div', { className: "bg-emerald-500/10 p-4 rounded-3xl border border-emerald-500/20" }, 
+                                h('p', { className: "text-emerald-500 text-[8px] font-black uppercase mb-1" }, "Ventes"),
+                                h('p', { className: "text-white font-black text-[14px]" }, `${dayReport.revenue.toLocaleString()} Ar`)
+                            ),
+                            h('div', { className: "bg-rose-500/10 p-4 rounded-3xl border border-rose-500/20" }, 
+                                h('p', { className: "text-rose-500 text-[8px] font-black uppercase mb-1" }, "Dépenses"),
+                                h('p', { className: "text-white font-black text-[14px]" }, `${dayReport.expenseTotal.toLocaleString()} Ar`)
+                            ),
+                            h('div', { className: "bg-indigo-500/10 p-4 rounded-3xl border border-indigo-500/20" }, 
+                                h('p', { className: "text-indigo-500 text-[8px] font-black uppercase mb-1" }, "Net"),
+                                h('p', { className: "text-white font-black text-[14px]" }, `${dayReport.net.toLocaleString()} Ar`)
+                            )
+                        ),
+                        h('div', { className: "space-y-4" },
+                            h('h3', { className: "text-white/40 font-black uppercase text-[10px] tracking-widest" }, `Historique des Ventes (${dayReport.sales.length})`),
+                            dayReport.sales.length === 0 ? h('p', { className: "text-white/20 text-center py-10 font-black uppercase" }, "Aucune vente livrée") :
+                            dayReport.sales.map(s => h('div', { key: s.id, className: "bg-white/5 p-4 rounded-2xl border border-white/5 flex items-center justify-between" },
+                                h('div', null,
+                                    h('p', { className: "text-white font-black text-[11px] uppercase" }, s.nom),
+                                    h('p', { className: "text-slate-500 text-[9px] font-bold" }, s.telephone || "Pas de numéro")
+                                ),
+                                h('p', { className: "text-emerald-400 font-black" }, `${Number(s.montant).toLocaleString()} Ar`)
+                            ))
+                        )
+                    )
+                );
             };
 
             const ModalEdit = () => {
@@ -210,6 +253,7 @@
 
             return h('div', { className: "min-h-screen bg-slate-50 pb-24" },
                 h(ModalEdit),
+                h(ModalReport),
                 
                 tomorrowCount > 0 && h('div', { 
                     onClick: () => { setActiveTab('livraisons'); setDeliveryFilter('Demain'); },
@@ -225,7 +269,11 @@
                     h('div', { className: "flex items-center gap-2" },
                         h('div', { className: "w-8 h-8 bg-slate-900 rounded-lg flex items-center justify-center text-white font-black italic shadow-lg" }, "R"),
                         h('span', { className: "font-black text-lg italic uppercase tracking-tighter" }, "Rasoa Pro")
-                    )
+                    ),
+                    h('button', { 
+                        onClick: () => { setReportDate(new Date().toISOString().split('T')[0]); setShowReport(true); },
+                        className: "p-2 bg-slate-100 rounded-full text-slate-900"
+                    }, h(Icon, { name: "fileText", size: 18 }))
                 ),
 
                 h('main', { className: "max-w-xl mx-auto p-4 space-y-6" },
@@ -283,7 +331,6 @@
                                 h('button', {
                                     onClick: async () => {
                                         if(!orderForm.nom || !orderForm.montant) return;
-                                        // MODIFICATION : Les commandes partent en "En attente" par défaut
                                         await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'livraisons'), { 
                                             ...orderForm, montant: Number(orderForm.montant) || 0, statut: "En attente", timestamp: serverTimestamp() 
                                         });
@@ -318,14 +365,10 @@
                                 ),
                                 h('div', { className: "flex gap-2" },
                                     h('button', { onClick: () => setEditingOrder(l), className: "p-3 bg-slate-50 text-slate-400 rounded-2xl" }, h(Icon, { name: "edit", size: 18 })),
-                                    
-                                    // ACTION : De En attente -> En cours
                                     (l.statut === "En attente" || !l.statut) && h('button', { 
                                         onClick: () => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', l.id), { statut: 'En cours' }), 
                                         className: "p-3 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center gap-1" 
                                     }, h(Icon, { name: "arrowRight", size: 18 })),
-
-                                    // ACTION : De En cours -> Livré
                                     l.statut === "En cours" && h('button', { 
                                         onClick: () => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', l.id), { statut: 'Livré' }), 
                                         className: "p-3 bg-emerald-50 text-emerald-600 rounded-2xl" 
@@ -342,31 +385,10 @@
                                     h(Icon, { name: "phone", size: 14, className: "shrink-0 text-emerald-500" }),
                                     h('a', { href: `tel:${l.telephone}`, className: "font-black text-[12px] text-slate-900" }, l.telephone || "---")
                                 ),
-                                
                                 h('div', { className: "flex flex-wrap gap-2 mt-2 py-2" },
-                                    h('button', { 
-                                        onClick: () => handleReportTomorrow(l.id),
-                                        className: "flex items-center gap-1.5 px-3 py-2 bg-indigo-50 text-indigo-700 rounded-xl font-black text-[9px] uppercase border border-indigo-100"
-                                    }, h(Icon, { name: "refresh", size: 12 }), "Reporter"),
-                                    
-                                    h('div', { className: "flex items-center gap-1.5 px-3 py-2 bg-slate-50 text-slate-600 rounded-xl border border-slate-100" },
-                                        h(Icon, { name: "calendar", size: 12 }),
-                                        h('input', { 
-                                            type: "date", 
-                                            onChange: (e) => handleCustomDate(l.id, e.target.value),
-                                            className: "bg-transparent font-black text-[9px] uppercase outline-none"
-                                        })
-                                    ),
-
-                                    h('button', { 
-                                        onClick: () => handleDeleteOrder(l.id),
-                                        className: "flex items-center gap-1.5 px-3 py-2 bg-rose-50 text-rose-600 rounded-xl font-black text-[9px] uppercase border border-rose-100 ml-auto"
-                                    }, h(Icon, { name: "trash", size: 12 }), "Effacer")
-                                ),
-
-                                h('div', { className: "mt-1 flex items-center justify-between" },
-                                    h('span', { className: "text-[9px] font-black uppercase text-slate-300" }, `Date : ${l.datePlanif}`),
-                                    h('span', { className: "text-[9px] font-black uppercase px-2 py-1 bg-slate-900 text-white rounded-lg" }, l.statut || "En attente")
+                                    h('button', { onClick: () => handleReportTomorrow(l.id), className: "flex items-center gap-1.5 px-3 py-2 bg-indigo-50 text-indigo-700 rounded-xl font-black text-[9px] uppercase border border-indigo-100" }, h(Icon, { name: "refresh", size: 12 }), "Reporter"),
+                                    h('div', { className: "flex items-center gap-1.5 px-3 py-2 bg-slate-50 text-slate-600 rounded-xl border border-slate-100" }, h(Icon, { name: "calendar", size: 12 }), h('input', { type: "date", onChange: (e) => handleCustomDate(l.id, e.target.value), className: "bg-transparent font-black text-[9px] uppercase outline-none w-20" })),
+                                    h('button', { onClick: () => { if(confirm("Supprimer?")) deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', l.id)) }, className: "flex items-center gap-1.5 px-3 py-2 bg-rose-50 text-rose-600 rounded-xl font-black text-[9px] uppercase border border-rose-100 ml-auto" }, h(Icon, { name: "trash", size: 12 }))
                                 )
                             )
                         ))
@@ -382,16 +404,13 @@
                                 h('button', {
                                     onClick: async () => {
                                         if(!clientForm.nom) return;
-                                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'clients'), { 
-                                            ...clientForm, timestamp: serverTimestamp() 
-                                        });
+                                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'clients'), { ...clientForm, timestamp: serverTimestamp() });
                                         setClientForm({ nom: "", telephone: "", adresse: "", source: "Facebook" });
                                     },
                                     className: "w-full bg-slate-900 text-white py-4 rounded-2xl font-black uppercase text-[11px]"
                                 }, "Sauvegarder Client")
                             )
                         ),
-
                         h('div', { className: "space-y-3" },
                             clients.map(c => h('div', { key: c.id, className: "bg-white p-5 rounded-3xl border shadow-sm flex items-start gap-4" },
                                 h('div', { className: `p-3 rounded-2xl bg-blue-50 text-blue-600` }, h(Icon, { name: "users", size: 18 })),
@@ -407,30 +426,66 @@
                     ),
 
                     activeTab === 'finances' && h('div', { className: "space-y-6 animate-fadeIn" },
-                        h('div', { className: "bg-slate-900 p-8 rounded-[2.5rem] text-white shadow-2xl" },
-                            h('p', { className: "text-[10px] font-black uppercase opacity-60 mb-1" }, "Recette Nette"),
+                        h('div', { className: "bg-slate-900 p-8 rounded-[2.5rem] text-white shadow-2xl relative overflow-hidden" },
+                            h('div', { className: "absolute top-0 right-0 p-6 opacity-10" }, h(Icon, { name: "trendingUp", size: 120 })),
+                            h('p', { className: "text-[10px] font-black uppercase opacity-60 mb-1" }, "Recette Totale Nette"),
                             h('p', { className: "text-4xl font-black tracking-tighter" }, `${stats.net.toLocaleString()} Ar`),
                             h('div', { className: "flex gap-4 mt-6 border-t border-white/10 pt-6" },
-                                h('div', { className: "flex-1" }, h('p', { className: "text-[8px] font-bold opacity-50 uppercase" }, "Ventes"), h('p', { className: "font-black" }, `${stats.encaisse.toLocaleString()} Ar`)),
-                                h('div', { className: "flex-1" }, h('p', { className: "text-[8px] font-bold opacity-50 uppercase" }, "Dépenses"), h('p', { className: "font-black text-rose-400" }, `${stats.charges.toLocaleString()} Ar`))
+                                h('div', { className: "flex-1" }, h('p', { className: "text-[8px] font-bold opacity-50 uppercase" }, "Ventes cumulées"), h('p', { className: "font-black" }, `${stats.encaisse.toLocaleString()} Ar`)),
+                                h('div', { className: "flex-1" }, h('p', { className: "text-[8px] font-bold opacity-50 uppercase" }, "Dépenses cumulées"), h('p', { className: "font-black text-rose-400" }, `${stats.charges.toLocaleString()} Ar`))
                             )
                         ),
+
+                        h('button', { 
+                            onClick: () => { setReportDate(new Date().toISOString().split('T')[0]); setShowReport(true); },
+                            className: "w-full p-6 bg-white rounded-[2rem] border shadow-sm flex items-center justify-between group active:scale-95 transition-all"
+                        },
+                            h('div', { className: "flex items-center gap-4" },
+                                h('div', { className: "w-12 h-12 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center" }, h(Icon, { name: "fileText", size: 24 })),
+                                h('div', { className: "text-left" },
+                                    h('p', { className: "font-black uppercase text-[12px] text-slate-900" }, "Rapports Journaliers"),
+                                    h('p', { className: "text-[10px] font-bold text-slate-400" }, "Voir historique et statistiques par date")
+                                )
+                            ),
+                            h(Icon, { name: "chevronRight", size: 20, className: "text-slate-300 group-hover:translate-x-1 transition-transform" })
+                        ),
+
                         h('div', { className: "bg-white p-6 rounded-[2rem] border border-rose-100 shadow-sm" },
                             h('h3', { className: "font-black uppercase text-[11px] mb-4 text-rose-600" }, "Nouvelle Dépense"),
                             h('div', { className: "space-y-3" },
+                                h('input', { type: "date", value: expenseForm.date, onChange: e => setExpenseForm({...expenseForm, date: e.target.value}), className: "w-full p-3 bg-slate-50 rounded-xl font-bold border" }),
                                 h('input', { value: expenseForm.titre, onChange: e => setExpenseForm({...expenseForm, titre: e.target.value}), placeholder: "Motif", className: "w-full p-3 bg-slate-50 rounded-xl font-bold border" }),
                                 h('input', { type: "number", value: expenseForm.montant, onChange: e => setExpenseForm({...expenseForm, montant: e.target.value}), placeholder: "Montant Ar", className: "w-full p-3 bg-slate-50 rounded-xl font-bold border" }),
                                 h('button', {
                                     onClick: async () => {
                                         if(!expenseForm.titre || !expenseForm.montant) return;
                                         await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'depenses'), { 
-                                            montant: Number(expenseForm.montant) || 0, titre: expenseForm.titre || "", timestamp: serverTimestamp() 
+                                            ...expenseForm, montant: Number(expenseForm.montant) || 0, timestamp: serverTimestamp() 
                                         });
-                                        setExpenseForm({ titre: "", montant: "" });
+                                        setExpenseForm({ titre: "", montant: "", date: new Date().toISOString().split('T')[0] });
                                     },
-                                    className: "w-full bg-rose-600 text-white py-3 rounded-xl font-black uppercase text-[9px]"
+                                    className: "w-full bg-rose-600 text-white py-4 rounded-xl font-black uppercase text-[9px]"
                                 }, "Enregistrer Dépense")
                             )
+                        ),
+
+                        // Liste des dépenses avec option de suppression
+                        h('div', { className: "space-y-4" },
+                            h('h3', { className: "font-black uppercase text-[10px] text-slate-400 tracking-widest" }, "Historique des dépenses"),
+                            depenses.length === 0 ? h('p', { className: "text-center py-10 opacity-20 font-black" }, "AUCUNE DÉPENSE") :
+                            depenses.sort((a,b) => b.date.localeCompare(a.date)).map(d => h('div', { key: d.id, className: "bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between animate-fadeIn" },
+                                h('div', { className: "flex flex-col" },
+                                    h('p', { className: "text-[10px] font-black text-rose-500 uppercase" }, d.date),
+                                    h('p', { className: "font-bold text-slate-900" }, d.titre)
+                                ),
+                                h('div', { className: "flex items-center gap-4" },
+                                    h('p', { className: "font-black text-rose-600" }, `-${Number(d.montant).toLocaleString()} Ar`),
+                                    h('button', { 
+                                        onClick: () => { if(confirm("Supprimer cette dépense ?")) deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'depenses', d.id)) },
+                                        className: "p-2 text-slate-200 hover:text-rose-600 transition-colors" 
+                                    }, h(Icon, { name: "trash", size: 16 }))
+                                )
+                            ))
                         )
                     )
                 )
