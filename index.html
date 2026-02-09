@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Rasoa Pro V9.1 - Dates de Livraison</title>
+    <title>Rasoa Pro V9.7 - Gestion des Livraisons</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
@@ -45,8 +45,9 @@
                 calendar: [h('rect', { key: '1', x: "3", y: "4", width: "18", height: "18", rx: "2", ry: "2" }), h('line', { key: '2', x1: "16", y1: "2", x2: "16", y2: "6" }), h('line', { key: '3', x1: "8", y1: "2", x2: "8", y2: "6" }), h('line', { key: '4', x1: "3", y1: "10", x2: "21", y2: "10" })],
                 trash: [h('polyline', { key: '1', points: "3 6 5 6 21 6" }), h('path', { key: '2', d: "M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" })],
                 search: [h('circle', { key: '1', cx: "11", cy: "11", r: "8" }), h('line', { key: '2', x1: "21", y1: "21", x2: "16.65", y2: "16.65" })],
-                bell: [h('path', { key: '1', d: "M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" }), h('path', { key: '2', d: "M13.73 21a2 2 0 0 1-3.46 0" })],
-                chevronRight: [h('polyline', { key: '1', points: "9 18 15 12 9 6" })]
+                download: [h('path', { key: '1', d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" }), h('polyline', { key: '2', points: "7 10 12 15 17 10" }), h('line', { key: '3', x1: "12", y1: "15", x2: "12", y2: "3" })],
+                edit: [h('path', { key: '1', d: "M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" }), h('path', { key: '2', d: "M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" })],
+                barChart: [h('line', { key: '1', x1: "18", y1: "20", x2: "18", y2: "10" }), h('line', { key: '2', x1: "12", y1: "20", x2: "12", y2: "4" }), h('line', { key: '3', x1: "6", y1: "20", x2: "6", y2: "14" })]
             };
             return h('svg', { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2.5", strokeLinecap: "round", strokeLinejoin: "round", className: className }, icons[name] || null);
         };
@@ -56,14 +57,17 @@
             const [activeTab, setActiveTab] = useState("commandes");
             const [livraisons, setLivraisons] = useState([]);
             const [depenses, setDepenses] = useState([]);
+            const [clients, setClients] = useState([]); // Données venant de Firestore collection 'clients'
             const [deliveryFilter, setDeliveryFilter] = useState("Aujourd'hui");
             const [clientSearch, setClientSearch] = useState("");
             const [showSuggestions, setShowSuggestions] = useState(false);
             const [suggestedClients, setSuggestedClients] = useState([]);
+            const [dailyRecapModal, setDailyRecapModal] = useState(false);
+            const [editingDeliveryId, setEditingDeliveryId] = useState(null);
+            const [editForm, setEditForm] = useState({});
 
             const today = new Date();
             const todayStr = today.toISOString().split('T')[0];
-            
             const tomorrow = new Date(today);
             tomorrow.setDate(today.getDate() + 1);
             const tomorrowStr = tomorrow.toISOString().split('T')[0];
@@ -83,15 +87,21 @@
                 if (!db) return;
                 const livRef = collection(db, 'artifacts', appId, 'public', 'data', 'livraisons');
                 const depRef = collection(db, 'artifacts', appId, 'public', 'data', 'depenses');
+                const cliRef = collection(db, 'artifacts', appId, 'public', 'data', 'clients');
 
                 const unsubLiv = onSnapshot(query(livRef, orderBy('timestamp', 'desc')), s => {
                     setLivraisons(s.docs.map(d => ({id: d.id, ...d.data()})));
                 }, (err) => console.error(err));
+                
                 const unsubDep = onSnapshot(query(depRef, orderBy('timestamp', 'desc')), s => {
                     setDepenses(s.docs.map(d => ({id: d.id, ...d.data()})));
                 }, (err) => console.error(err));
 
-                return () => { unsubLiv(); unsubDep(); };
+                const unsubCli = onSnapshot(cliRef, s => {
+                    setClients(s.docs.map(d => ({id: d.id, ...d.data()})));
+                }, (err) => console.error(err));
+
+                return () => { unsubLiv(); unsubDep(); unsubCli(); };
             }, [db]);
 
             const alerts = useMemo(() => {
@@ -99,6 +109,54 @@
                 const lateCount = livraisons.filter(l => l.datePlanif <= todayStr && l.statut !== 'Livré').length;
                 return { tomorrowCount, lateCount };
             }, [livraisons, tomorrowStr, todayStr]);
+
+            const stats = useMemo(() => {
+                const caReel = livraisons.filter(l => l.statut === "Livré").reduce((acc, l) => acc + (Number(l.montant) || 0), 0);
+                const caPrevu = livraisons.reduce((acc, l) => acc + (Number(l.montant) || 0), 0);
+                const totalDepenses = depenses.reduce((acc, d) => acc + (Number(d.montant) || 0), 0);
+                const resteAEncaisser = livraisons.filter(l => l.statut !== "Livré").reduce((acc, l) => acc + ((Number(l.montant) || 0) - (Number(l.avance) || 0)), 0);
+                
+                const dailySales = [];
+                for (let i = 6; i >= 0; i--) {
+                    const d = new Date();
+                    d.setDate(d.getDate() - i);
+                    const ds = d.toISOString().split('T')[0];
+                    const label = i === 0 ? "Auj." : d.toLocaleDateString('fr-FR', { weekday: 'short' });
+                    const val = livraisons
+                        .filter(l => l.statut === "Livré" && l.datePlanif === ds)
+                        .reduce((acc, l) => acc + (Number(l.montant) || 0), 0);
+                    dailySales.push({ label, val, fullDate: ds });
+                }
+
+                return { caReel, caPrevu, totalDepenses, benefice: caReel - totalDepenses, resteAEncaisser, dailySales };
+            }, [livraisons, depenses]);
+
+            const downloadCSV = () => {
+                let csvRows = [];
+                csvRows.push("RESUME FINANCIER CUMULE");
+                csvRows.push(`CA Reel (Encaisse);${stats.caReel};Ar`);
+                csvRows.push(`CA Previsionnel (Total);${stats.caPrevu};Ar`);
+                csvRows.push(`Depenses Totales;${stats.totalDepenses};Ar`);
+                csvRows.push(`Benefice Net (CA Reel - Depenses);${stats.benefice};Ar`);
+                csvRows.push("");
+                csvRows.push("LISTE DETAILLEE DES TRANSACTIONS");
+                csvRows.push("DATE;TYPE;NOM/LIBELLE;MONTANT;STATUT;TELEPHONE;LIEU");
+                livraisons.forEach(l => {
+                    csvRows.push(`${l.datePlanif};VENTE;${l.nom};${l.montant};${l.statut};${l.telephone || ''};${l.lieu || ''}`);
+                });
+                depenses.forEach(d => {
+                    const date = d.timestamp?.toDate ? d.timestamp.toDate().toISOString().split('T')[0] : '';
+                    csvRows.push(`${date};DEPENSE;${d.libelle};${d.montant};-;--;--`);
+                });
+                const blob = new Blob([csvRows.join("\n")], { type: 'text/csv;charset=utf-8;' });
+                const url = URL.createObjectURL(blob);
+                const link = document.createElement("a");
+                link.setAttribute("href", url);
+                link.setAttribute("download", `rapport_rasoa_pro_${todayStr}.csv`);
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            };
 
             const filterCounts = useMemo(() => {
                 return {
@@ -110,36 +168,58 @@
                 };
             }, [livraisons, todayStr, alerts]);
 
-            const clientsListe = useMemo(() => {
-                const map = new Map();
-                livraisons.forEach(l => {
-                    const key = (l.telephone || l.nom).toLowerCase();
-                    if (!map.has(key)) map.set(key, { nom: l.nom, telephone: l.telephone || "", lieu: l.lieu || "Non précisé", totalVentes: 0, historique: [] });
-                    const c = map.get(key);
-                    c.totalVentes += (Number(l.montant) || 0);
-                    if (l.lieu) c.lieu = l.lieu;
-                    c.historique.push(l);
-                });
-                return Array.from(map.values()).sort((a,b) => b.totalVentes - a.totalVentes);
-            }, [livraisons]);
-
-            const stats = useMemo(() => {
-                const caReel = livraisons.filter(l => l.statut === "Livré").reduce((acc, l) => acc + (Number(l.montant) || 0), 0);
-                const caPrevu = livraisons.reduce((acc, l) => acc + (Number(l.montant) || 0), 0);
-                const totalDepenses = depenses.reduce((acc, d) => acc + (Number(d.montant) || 0), 0);
-                const resteAEncaisser = livraisons.filter(l => l.statut !== "Livré").reduce((acc, l) => acc + ((Number(l.montant) || 0) - (Number(l.avance) || 0)), 0);
-                return { caReel, caPrevu, totalDepenses, benefice: caReel - totalDepenses, resteAEncaisser };
-            }, [livraisons, depenses]);
-
             const handleAddOrder = async () => {
                 if(!orderForm.nom || !orderForm.montant) return;
                 const mnt = Number(orderForm.montant) || 0;
                 const av = orderForm.typePaiement === "Total" ? mnt : (Number(orderForm.avance) || 0);
+                
+                // 1. Ajouter la livraison
                 await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'livraisons'), { 
                     ...orderForm, montant: mnt, avance: av, statut: "En attente", timestamp: serverTimestamp() 
                 });
+
+                // 2. Mettre à jour ou créer le client dans la collection 'clients'
+                const existingClient = clients.find(c => c.nom === orderForm.nom || c.telephone === orderForm.telephone);
+                if (existingClient) {
+                    await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'clients', existingClient.id), {
+                        totalVentes: (existingClient.totalVentes || 0) + mnt,
+                        derniereCommande: serverTimestamp(),
+                        lieu: orderForm.lieu || existingClient.lieu
+                    });
+                } else {
+                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'clients'), {
+                        nom: orderForm.nom,
+                        telephone: orderForm.telephone,
+                        lieu: orderForm.lieu,
+                        totalVentes: mnt,
+                        dateCreation: serverTimestamp()
+                    });
+                }
+
                 setOrderForm({ nom: "", telephone: "", lieu: "", montant: "", avance: "", typePaiement: "Avance", datePlanif: todayStr });
                 setShowSuggestions(false);
+            };
+
+            const handleDeleteDelivery = async (id) => {
+                if (window.confirm("Confirmer la suppression ?")) {
+                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', id));
+                }
+            };
+
+            const startEditing = (l) => {
+                setEditingDeliveryId(l.id);
+                setEditForm({ ...l });
+            };
+
+            const saveEdit = async () => {
+                if (!editForm.nom || !editForm.montant) return;
+                const { id, ...data } = editForm;
+                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', id), {
+                    ...data,
+                    montant: Number(data.montant),
+                    avance: Number(data.avance)
+                });
+                setEditingDeliveryId(null);
             };
 
             const filteredLivraisons = useMemo(() => {
@@ -173,27 +253,19 @@
                 h('main', { className: "max-w-7xl mx-auto p-4 lg:p-8" },
                     
                     activeTab === 'commandes' && h('div', { className: "space-y-6 animate-fadeIn" }, [
-                        
-                        // SECTION ALERTES AVEC FILTRAGE
-                        (alerts.tomorrowCount > 0 || alerts.lateCount > 0) && h('div', { key: 'alert-zone', className: "flex gap-4 overflow-x-auto pb-2 scrollbar-hide" }, [
+                        h('div', { key: 'alert-zone', className: "flex gap-4 overflow-x-auto pb-2 scrollbar-hide" }, [
                             alerts.lateCount > 0 && h('div', { key: 'late', onClick: () => setDeliveryFilter("Retards"), className: "cursor-pointer group flex-shrink-0 bg-rose-50 border border-rose-100 p-4 rounded-3xl flex items-center gap-4 transition-all hover:bg-rose-100" }, [
                                 h('div', {className:"w-10 h-10 bg-rose-500 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-rose-200"}, h(Icon, {name:"bell", size:20})),
                                 h('div', {}, [
                                     h('p', {className:"text-[10px] font-black text-rose-400 uppercase"}, "Retard / Aujourd'hui"),
-                                    h('div', {className:"flex items-center gap-2"}, [
-                                        h('p', {className:"font-black text-rose-600"}, `${alerts.lateCount} livraison(s)`),
-                                        h('div', {className:"bg-rose-600 text-white text-[9px] px-2 py-0.5 rounded-full flex items-center gap-1"}, ["VOIR", h(Icon, {name:"chevronRight", size:8})])
-                                    ])
+                                    h('p', {className:"font-black text-rose-600 leading-tight"}, `${alerts.lateCount} livraison(s)`)
                                 ])
                             ]),
                             alerts.tomorrowCount > 0 && h('div', { key: 'tmw', onClick: () => setDeliveryFilter("Demain"), className: "cursor-pointer group flex-shrink-0 bg-indigo-50 border border-indigo-100 p-4 rounded-3xl flex items-center gap-4 transition-all hover:bg-indigo-100" }, [
                                 h('div', {className:"w-10 h-10 bg-indigo-500 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-200"}, h(Icon, {name:"shoppingCart", size:20})),
                                 h('div', {}, [
                                     h('p', {className:"text-[10px] font-black text-indigo-400 uppercase"}, "Prévu Demain (J+1)"),
-                                    h('div', {className:"flex items-center gap-2"}, [
-                                        h('p', {className:"font-black text-indigo-600"}, `${alerts.tomorrowCount} commande(s)`),
-                                        h('div', {className:"bg-indigo-600 text-white text-[9px] px-2 py-0.5 rounded-full flex items-center gap-1"}, ["VOIR", h(Icon, {name:"chevronRight", size:8})])
-                                    ])
+                                    h('p', {className:"font-black text-indigo-600 leading-tight"}, `${alerts.tomorrowCount} commande(s)`)
                                 ])
                             ])
                         ]),
@@ -204,9 +276,16 @@
                                     h('h2', { className: "font-black uppercase text-[11px] tracking-widest text-slate-400 mb-6" }, "Nouvelle Commande"),
                                     h('div', { className: "space-y-4 relative" },
                                         h('div', { className: "relative" },
-                                            h('input', { value: orderForm.nom, onChange: e => { setOrderForm(p=>({...p, nom: e.target.value})); if(e.target.value.trim()){const f=clientsListe.filter(c=>c.nom.toLowerCase().includes(e.target.value.toLowerCase())).slice(0,5); setSuggestedClients(f); setShowSuggestions(f.length>0);}else setShowSuggestions(false); }, placeholder: "Nom client", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold border outline-none focus:border-indigo-600 shadow-inner" }),
+                                            h('input', { value: orderForm.nom, onChange: e => { 
+                                                setOrderForm(p=>({...p, nom: e.target.value})); 
+                                                if(e.target.value.trim()){
+                                                    const f = clients.filter(c => c.nom?.toLowerCase().includes(e.target.value.toLowerCase())).slice(0,5); 
+                                                    setSuggestedClients(f); 
+                                                    setShowSuggestions(f.length > 0);
+                                                } else setShowSuggestions(false); 
+                                            }, placeholder: "Nom client", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold border outline-none focus:border-indigo-600 shadow-inner" }),
                                             showSuggestions && h('div', { className: "absolute top-full left-0 right-0 bg-white border rounded-2xl mt-2 shadow-2xl z-50 overflow-hidden" },
-                                                suggestedClients.map((c, i) => h('button', { key: i, onClick: () => { setOrderForm(p => ({...p, nom: c.nom, telephone: c.telephone, lieu: c.lieu})); setShowSuggestions(false); }, className: "w-full p-4 text-left hover:bg-indigo-50 border-b last:border-0" }, [
+                                                suggestedClients.map((c, i) => h('button', { key: i, onClick: () => { setOrderForm(p => ({...p, nom: c.nom, telephone: c.telephone || "", lieu: c.lieu || ""})); setShowSuggestions(false); }, className: "w-full p-4 text-left hover:bg-indigo-50 border-b last:border-0" }, [
                                                     h('p', { key: 'n', className: "font-black" }, c.nom), h('p', { key: 't', className: "text-[10px] text-indigo-500 font-bold" }, c.telephone)
                                                 ]))
                                             )
@@ -233,53 +312,75 @@
                                     ]))
                                 ),
                                 h('div', { key: 'l', className: "grid grid-cols-1 md:grid-cols-2 gap-4" }, 
-                                    filteredLivraisons.map(l => h('div', { key: l.id, className: "bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm animate-fadeIn" }, [
-                                        h('div', { key: 'h', className: "flex justify-between items-start" }, [
-                                            h('div', { key: 'i' }, [
-                                                h('p', {key:'n', className:"font-black uppercase text-slate-900"}, l.nom), 
-                                                h('p', {key:'t', className:"text-indigo-500 font-bold text-[10px] mb-2"}, l.telephone),
-                                                h('div', {key:'l', className:"flex items-center gap-1 text-slate-400 mb-1"}, [h(Icon, {name:"mapPin", size:10}), h('span', {className:"text-[10px] font-bold"}, l.lieu || "Lieu non défini")]),
-                                                h('div', {key:'dt', className:"flex items-center gap-1 text-indigo-400 font-black text-[9px] uppercase"}, [h(Icon, {name:"calendar", size:10}), formatDate(l.datePlanif)])
+                                    filteredLivraisons.map(l => (editingDeliveryId === l.id) ? (
+                                        h('div', { key: l.id, className: "bg-white p-6 rounded-[2.5rem] border-2 border-indigo-200 shadow-xl space-y-3" }, [
+                                            h('input', { value: editForm.nom, onChange: e => setEditForm({...editForm, nom: e.target.value}), className: "w-full p-2 bg-slate-50 rounded-xl font-bold border text-sm" }),
+                                            h('div', { className: "grid grid-cols-2 gap-2" }, [
+                                                h('input', { type: "number", value: editForm.montant, onChange: e => setEditForm({...editForm, montant: e.target.value}), className: "p-2 bg-slate-50 rounded-xl font-bold border text-sm" }),
+                                                h('input', { type: "number", value: editForm.avance, onChange: e => setEditForm({...editForm, avance: e.target.value}), className: "p-2 bg-slate-50 rounded-xl font-bold border text-sm" })
                                             ]),
-                                            h('div', {key:'st', className:`px-3 py-1 rounded-full text-[8px] font-black uppercase h-fit ${l.statut === 'Livré' ? 'bg-emerald-100 text-emerald-600' : 'bg-orange-100 text-orange-600'}`}, l.statut)
-                                        ]),
-                                        h('div', { key: 's', className: "flex justify-between border-t border-slate-50 mt-4 pt-4" }, [
-                                            h('div', { key: 't' }, [h('p', {className:"text-[8px] font-black text-slate-400 uppercase"}, "Montant"), h('p', {className:"font-black text-slate-900"}, `${(Number(l.montant)||0).toLocaleString()} Ar`)]),
-                                            h('div', { key: 'r' }, [h('p', {className:"text-[8px] font-black text-rose-400 uppercase"}, "Reste"), h('p', {className:"font-black text-rose-600"}, `${((Number(l.montant)||0) - (Number(l.avance)||0)).toLocaleString()} Ar`)])
-                                        ]),
-                                        l.statut !== "Livré" && h('button', { key: 'b', onClick: () => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', l.id), { statut: 'Livré', avance: l.montant }), className: "w-full mt-4 bg-emerald-500 text-white py-3 rounded-2xl font-black uppercase text-[10px] shadow-lg shadow-emerald-100" }, "Confirmer Livraison")
-                                    ]))
+                                            h('input', { value: editForm.lieu, onChange: e => setEditForm({...editForm, lieu: e.target.value}), className: "w-full p-2 bg-slate-50 rounded-xl font-bold border text-sm" }),
+                                            h('input', { type: "date", value: editForm.datePlanif, onChange: e => setEditForm({...editForm, datePlanif: e.target.value}), className: "w-full p-2 bg-slate-50 rounded-xl font-bold border text-sm" }),
+                                            h('div', { className: "flex gap-2 pt-2" }, [
+                                                h('button', { onClick: saveEdit, className: "flex-1 bg-indigo-600 text-white py-2 rounded-xl font-black text-[10px] uppercase" }, "Enregistrer"),
+                                                h('button', { onClick: () => setEditingDeliveryId(null), className: "flex-1 bg-slate-100 text-slate-600 py-2 rounded-xl font-black text-[10px] uppercase" }, "Annuler")
+                                            ])
+                                        ])
+                                    ) : (
+                                        h('div', { key: l.id, className: "bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm animate-fadeIn relative overflow-hidden" }, [
+                                            h('div', { key: 'h', className: "flex justify-between items-start" }, [
+                                                h('div', { key: 'i' }, [
+                                                    h('p', {key:'n', className:"font-black uppercase text-slate-900"}, l.nom), 
+                                                    h('p', {key:'t', className:"text-indigo-500 font-bold text-[10px] mb-2"}, l.telephone),
+                                                    h('div', {key:'l', className:"flex items-center gap-1 text-slate-400 mb-1"}, [h(Icon, {name:"mapPin", size:10}), h('span', {className:"text-[10px] font-bold"}, l.lieu || "Lieu non défini")]),
+                                                    h('div', {key:'dt', className:"flex items-center gap-1 text-indigo-400 font-black text-[9px] uppercase"}, [h(Icon, {name:"calendar", size:10}), formatDate(l.datePlanif)])
+                                                ]),
+                                                h('div', { key: 'actions', className: "flex gap-2" }, [
+                                                    h('button', { onClick: () => startEditing(l), className: "p-2 text-slate-400 hover:text-indigo-600 transition-colors bg-slate-50 rounded-xl" }, h(Icon, { name: "edit", size: 14 })),
+                                                    h('button', { onClick: () => handleDeleteDelivery(l.id), className: "p-2 text-slate-300 hover:text-rose-500 transition-colors bg-slate-50 rounded-xl" }, h(Icon, { name: "trash", size: 14 }))
+                                                ])
+                                            ]),
+                                            h('div', { key: 's', className: "flex justify-between border-t border-slate-50 mt-4 pt-4" }, [
+                                                h('div', { key: 't' }, [h('p', {className:"text-[8px] font-black text-slate-400 uppercase"}, "Montant"), h('p', {className:"font-black text-slate-900"}, `${(Number(l.montant)||0).toLocaleString()} Ar`)]),
+                                                h('div', { key: 'r' }, [h('p', {className:"text-[8px] font-black text-rose-400 uppercase"}, "Reste"), h('p', {className:"font-black text-rose-600"}, `${((Number(l.montant)||0) - (Number(l.avance)||0)).toLocaleString()} Ar`)])
+                                            ]),
+                                            l.statut !== "Livré" ? 
+                                                h('button', { key: 'b', onClick: () => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', l.id), { statut: 'Livré', avance: l.montant }), className: "w-full mt-4 bg-emerald-500 text-white py-3 rounded-2xl font-black uppercase text-[10px] shadow-lg shadow-emerald-100" }, "Confirmer Livraison") :
+                                                h('div', { key: 'lv', className: "w-full mt-4 bg-emerald-50 text-emerald-600 py-3 rounded-2xl font-black uppercase text-[10px] text-center" }, "Livré")
+                                        ])
+                                    ))
                                 )
                             ])
                         ])
                     ]),
 
-                    // ONGLET CLIENTS
                     activeTab === 'clients' && h('div', { className: "space-y-6 animate-fadeIn" }, [
                         h('div', { className: "bg-white p-6 rounded-[2.5rem] shadow-sm border flex items-center gap-4" }, [
                             h(Icon, { name: "search", className: "text-slate-400" }),
-                            h('input', { value: clientSearch, onChange: e => setClientSearch(e.target.value), placeholder: "Rechercher par nom, tel ou lieu...", className: "w-full bg-transparent font-bold outline-none text-lg" })
+                            h('input', { value: clientSearch, onChange: e => setClientSearch(e.target.value), placeholder: "Rechercher un client dans la base...", className: "w-full bg-transparent font-bold outline-none text-lg" })
                         ]),
                         h('div', { className: "grid grid-cols-1 md:grid-cols-3 gap-6" }, 
-                            clientsListe.filter(c => 
-                                c.nom.toLowerCase().includes(clientSearch.toLowerCase()) || 
-                                c.telephone.includes(clientSearch) || 
-                                c.lieu.toLowerCase().includes(clientSearch.toLowerCase())
-                            ).map((c, i) => h('div', { key: i, className: "bg-white p-8 rounded-[3rem] border shadow-sm flex flex-col items-center text-center hover:border-indigo-200 transition-all" }, [
-                                h('div', { key: 'av', className: "w-16 h-16 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mb-4 font-black text-xl uppercase border-2 border-white shadow-md" }, c.nom[0]),
-                                h('p', { key: 'n', className: "font-black text-xl leading-tight mb-1" }, c.nom),
-                                h('p', { key: 't', className: "text-indigo-500 font-bold text-sm mb-1" }, c.telephone),
-                                h('p', { key: 'l', className: "text-slate-400 text-[10px] font-bold uppercase mb-4 flex items-center gap-1" }, [h(Icon, {name:"mapPin", size:10}), c.lieu]),
+                            clients.filter(c => 
+                                (c.nom?.toLowerCase() || "").includes(clientSearch.toLowerCase()) || 
+                                (c.telephone || "").includes(clientSearch) || 
+                                (c.lieu?.toLowerCase() || "").includes(clientSearch.toLowerCase())
+                            ).map((c, i) => h('div', { key: c.id || i, className: "bg-white p-8 rounded-[3rem] border shadow-sm flex flex-col items-center text-center hover:border-indigo-200 transition-all" }, [
+                                h('div', { key: 'av', className: "w-16 h-16 bg-slate-100 text-slate-400 rounded-full flex items-center justify-center mb-4 font-black text-xl uppercase border-2 border-white shadow-md" }, (c.nom?.[0] || "?")),
+                                h('p', { key: 'n', className: "font-black text-xl leading-tight mb-1" }, c.nom || "Inconnu"),
+                                h('p', { key: 't', className: "text-indigo-500 font-bold text-sm mb-1" }, c.telephone || "Pas de numéro"),
+                                h('p', { key: 'l', className: "text-slate-400 text-[10px] font-bold uppercase mb-4 flex items-center gap-1" }, [h(Icon, {name:"mapPin", size:10}), c.lieu || "Lieu non spécifié"]),
                                 h('div', { key: 's', className: "w-full grid grid-cols-2 gap-2 mb-6" }, [
-                                    h('div', { key: 'v', className: "bg-slate-50 p-3 rounded-2xl border border-slate-100" }, [h('p', {className:"text-[8px] font-black uppercase text-slate-400 mb-1"}, "Volume Total"), h('p', {className:"font-black text-[12px] text-slate-900"}, `${c.totalVentes.toLocaleString()} Ar`)]),
-                                    h('div', { key: 'c', className: "bg-slate-50 p-3 rounded-2xl border border-slate-100" }, [h('p', {className:"text-[8px] font-black uppercase text-slate-400 mb-1"}, "Commandes"), h('p', {className:"font-black text-[12px] text-slate-900"}, c.historique.length)])
+                                    h('div', { key: 'v', className: "bg-slate-50 p-3 rounded-2xl border border-slate-100" }, [h('p', {className:"text-[8px] font-black uppercase text-slate-400 mb-1"}, "Total Ventes"), h('p', {className:"font-black text-[12px] text-slate-900"}, `${(c.totalVentes || 0).toLocaleString()} Ar`)]),
+                                    h('div', { key: 'c', className: "bg-slate-50 p-3 rounded-2xl border border-slate-100" }, [h('p', {className:"text-[8px] font-black uppercase text-slate-400 mb-1"}, "Status"), h('p', {className:"font-black text-[10px] text-indigo-600"}, "Client Base")])
                                 ]),
-                                h('button', { key: 'b', onClick: () => { setOrderForm({...orderForm, nom: c.nom, telephone: c.telephone, lieu: c.lieu}); setActiveTab('commandes'); }, className: "w-full bg-slate-900 text-white py-3 rounded-2xl font-black uppercase text-[9px] hover:bg-indigo-600 transition-all shadow-lg" }, "Nouvelle Commande")
+                                h('div', { key: 'btns', className: "w-full flex gap-2" }, [
+                                    h('button', { onClick: () => { setOrderForm({...orderForm, nom: c.nom, telephone: c.telephone, lieu: c.lieu}); setActiveTab('commandes'); }, className: "flex-1 bg-slate-900 text-white py-3 rounded-2xl font-black uppercase text-[9px] hover:bg-indigo-600 transition-all shadow-lg" }, "Commander"),
+                                    h('button', { onClick: async () => { if(window.confirm("Supprimer ce client ?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'clients', c.id)); }, className: "p-3 bg-slate-50 text-rose-500 rounded-2xl hover:bg-rose-50" }, h(Icon, {name:"trash", size:14}))
+                                ])
                             ]))
                         )
                     ]),
 
-                    // ONGLET DEPENSES
                     activeTab === 'finances' && h('div', { className: "grid lg:grid-cols-3 gap-8 animate-fadeIn" }, [
                         h('div', { className: "lg:col-span-1" },
                             h('div', { className: "bg-white p-8 rounded-[2.5rem] border shadow-xl sticky top-[100px]" }, [
@@ -308,8 +409,42 @@
                         )
                     ]),
 
-                    // ONGLET RAPPORTS
                     activeTab === 'rapports' && h('div', { className: "space-y-8 animate-fadeIn" }, [
+                        h('div', { key: 'action-grid', className: "grid grid-cols-2 gap-4" }, [
+                            h('button', { 
+                                onClick: () => setDailyRecapModal(true),
+                                className: "flex items-center justify-center gap-3 bg-white p-5 rounded-3xl border border-slate-200 shadow-sm hover:border-indigo-600 transition-all font-black uppercase text-[10px] text-indigo-600" 
+                            }, [h(Icon, {name: "layout", size: 18}), "Récap Journalier"]),
+                            h('button', { 
+                                onClick: downloadCSV,
+                                className: "flex items-center justify-center gap-3 bg-white p-5 rounded-3xl border border-slate-200 shadow-sm hover:border-emerald-600 transition-all font-black uppercase text-[10px] text-emerald-600" 
+                            }, [h(Icon, {name: "download", size: 18}), "Exporter Excel (Full)"])
+                        ]),
+
+                        h('div', { key: 'daily-chart', className: "bg-white p-8 rounded-[3rem] border border-slate-100 shadow-xl" }, [
+                            h('div', { className: "flex items-center justify-between mb-8" }, [
+                                h('div', {}, [
+                                    h('h3', { className: "font-black text-lg" }, "Ventes Journalières"),
+                                    h('p', { className: "text-[10px] font-bold text-slate-400 uppercase tracking-widest" }, "7 derniers jours (Livré uniquement)")
+                                ]),
+                                h('div', { className: "bg-indigo-50 p-3 rounded-2xl text-indigo-600" }, h(Icon, { name: "barChart" }))
+                            ]),
+                            h('div', { className: "flex items-end justify-between h-48 gap-2 px-2" }, 
+                                stats.dailySales.map((s, i) => {
+                                    const max = Math.max(...stats.dailySales.map(d => d.val), 1);
+                                    const heightPercent = (s.val / max) * 100;
+                                    return h('div', { key: i, className: "flex-1 flex flex-col items-center gap-3 group relative" }, [
+                                        h('div', { className: "absolute -top-10 opacity-0 group-hover:opacity-100 transition-opacity bg-slate-900 text-white text-[10px] font-bold py-1 px-2 rounded-lg whitespace-nowrap z-10" }, `${s.val.toLocaleString()} Ar`),
+                                        h('div', { 
+                                            className: `w-full rounded-xl transition-all duration-500 ${s.val > 0 ? 'bg-indigo-500 hover:bg-indigo-400' : 'bg-slate-50'}`,
+                                            style: { height: `${heightPercent || 5}%` }
+                                        }),
+                                        h('p', { className: `text-[10px] font-black ${s.fullDate === todayStr ? 'text-indigo-600' : 'text-slate-400'}` }, s.label)
+                                    ]);
+                                })
+                            )
+                        ]),
+
                         h('div', { key: 'sum', className: "grid grid-cols-1 md:grid-cols-4 gap-6" }, [
                             h('div', { key: 'ca-r', className: "bg-emerald-500 p-8 rounded-[3rem] text-white shadow-xl shadow-emerald-100" }, [
                                 h('p', {className:"text-[10px] font-black uppercase opacity-70 mb-2"}, "CA Réel (Livré)"), 
@@ -328,6 +463,37 @@
                                 h('p', {className:"text-2xl font-black leading-none"}, `${stats.benefice.toLocaleString()} Ar`)
                             ])
                         ])
+                    ])
+                ),
+
+                dailyRecapModal && h('div', { className: "fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[200] flex items-center justify-center p-6" }, 
+                    h('div', { className: "bg-white w-full max-w-md rounded-[2.5rem] p-8 animate-fadeIn" }, [
+                        h('div', { className: "flex justify-between items-center mb-6" }, [
+                            h('h2', { className: "font-black uppercase text-xs text-slate-400" }, "Rapport du " + formatDate(todayStr)),
+                            h('button', { onClick: () => setDailyRecapModal(false), className: "p-2 bg-slate-50 rounded-full text-slate-400" }, "✕")
+                        ]),
+                        h('div', { className: "space-y-6" }, [
+                            h('div', { className: "flex justify-between border-b pb-4" }, [
+                                h('p', { className: "font-bold text-slate-500" }, "Ventes (Livré)"),
+                                h('p', { className: "font-black text-emerald-600" }, `${livraisons.filter(l=>l.datePlanif===todayStr && l.statut==='Livré').reduce((acc,l)=>acc+(Number(l.montant)||0), 0).toLocaleString()} Ar`)
+                            ]),
+                            h('div', { className: "flex justify-between border-b pb-4" }, [
+                                h('p', { className: "font-bold text-slate-500" }, "Nb Commandes"),
+                                h('p', { className: "font-black" }, livraisons.filter(l=>l.datePlanif===todayStr).length)
+                            ]),
+                            h('div', { className: "flex justify-between border-b pb-4" }, [
+                                h('p', { className: "font-bold text-slate-500" }, "Dépenses"),
+                                h('p', { className: "font-black text-rose-500" }, `${depenses.filter(d => (d.timestamp?.toDate ? d.timestamp.toDate().toISOString().split('T')[0] : '') === todayStr).reduce((acc,d)=>acc+(Number(d.montant)||0), 0).toLocaleString()} Ar`)
+                            ]),
+                            h('div', { className: "bg-indigo-50 p-6 rounded-3xl" }, [
+                                h('p', { className: "text-center text-[10px] font-black text-indigo-400 uppercase mb-1" }, "Cash Flow Net"),
+                                h('p', { className: "text-center text-2xl font-black text-indigo-600" }, `${(
+                                    livraisons.filter(l=>l.datePlanif===todayStr && l.statut==='Livré').reduce((acc,l)=>acc+(Number(l.montant)||0),0) - 
+                                    depenses.filter(d => (d.timestamp?.toDate ? d.timestamp.toDate().toISOString().split('T')[0] : '') === todayStr).reduce((acc,d)=>acc+(Number(d.montant)||0), 0)
+                                ).toLocaleString()} Ar`)
+                            ])
+                        ]),
+                        h('button', { onClick: () => setDailyRecapModal(false), className: "w-full mt-8 bg-slate-900 text-white py-4 rounded-2xl font-black uppercase text-[10px]" }, "Fermer")
                     ])
                 ),
 
