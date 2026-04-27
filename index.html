@@ -7,7 +7,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3113/3113840.png">
-    <title>Rasoa Pro V10 - Notifications</title>
+    <title>Rasoa Pro V10 - Notifications Natives</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -29,6 +29,7 @@
         
         .notification-popup {
             animation: slideIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+            pointer-events: auto;
         }
 
         .animate-fadeIn { animation: fadeIn 0.3s ease-out forwards; }
@@ -105,16 +106,55 @@
 
             const [depenseForm, setDepenseForm] = useState({ libelle: "", montant: "", categorie: "Stock" });
 
-            // Système de notification type Facebook
+            // --- FONCTIONS NATIVES ---
+            
+            const playNotificationSound = () => {
+                try {
+                    const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                    const oscillator = audioCtx.createOscillator();
+                    const gainNode = audioCtx.createGain();
+                    oscillator.connect(gainNode);
+                    gainNode.connect(audioCtx.destination);
+                    oscillator.type = 'sine';
+                    oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
+                    gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
+                    gainNode.gain.linearRampToValueAtTime(0.1, audioCtx.currentTime + 0.01);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+                    oscillator.start();
+                    oscillator.stop(audioCtx.currentTime + 0.2);
+                } catch(e) {}
+            };
+
+            // Système de notification unifié (App + Système + Vibration + Son)
             const notify = (title, message, type = "info") => {
+                // 1. Vibration
+                if ("vibrate" in navigator) {
+                    navigator.vibrate([80, 40, 80]);
+                }
+
+                // 2. Son
+                playNotificationSound();
+
+                // 3. UI Notification (Facebook Style)
                 const id = Date.now();
                 setNotifications(prev => [...prev, { id, title, message, type }]);
-                setTimeout(() => {
-                    setNotifications(prev => prev.filter(n => n.id !== id));
-                }, 4000);
+                setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 5000);
+
+                // 4. Notification Système (Barre de tâches)
+                if ("Notification" in window && Notification.permission === "granted") {
+                    new Notification(`Rasoa Pro: ${title}`, {
+                        body: message,
+                        icon: "https://cdn-icons-png.flaticon.com/512/3113/3113840.png"
+                    });
+                }
             };
 
             useEffect(() => {
+                // Demande de permission notification système
+                if ("Notification" in window && Notification.permission === "default") {
+                    Notification.requestPermission();
+                }
+
                 const handleOnline = () => { 
                     setIsOffline(false); 
                     notify("Connexion Rétablie", "Vos données sont en cours de synchronisation.", "success");
@@ -150,10 +190,9 @@
                 const unsubLiv = onSnapshot(query(livRef, orderBy('timestamp', 'desc')), s => {
                     const data = s.docs.map(d => ({id: d.id, ...d.data()}));
                     
-                    // Alertes au chargement
                     const late = data.filter(l => l.datePlanif <= todayStr && l.statut !== 'Livré').length;
                     if (late > 0 && livraisons.length === 0) {
-                        notify("Alertes Retards", `Vous avez ${late} livraisons en retard à traiter !`, "error");
+                        notify("Alertes Retards", `Attention, ${late} livraisons sont en retard !`, "error");
                     }
                     
                     setLivraisons(data);
@@ -170,18 +209,11 @@
                 return () => { unsubLiv(); unsubDep(); unsubCli(); };
             }, [db]);
 
-            const alerts = useMemo(() => {
-                const tomorrowCount = livraisons.filter(l => l.datePlanif === tomorrowStr && l.statut !== 'Livré').length;
-                const lateCount = livraisons.filter(l => l.datePlanif <= todayStr && l.statut !== 'Livré').length;
-                return { tomorrowCount, lateCount };
-            }, [livraisons, tomorrowStr, todayStr]);
-
             const stats = useMemo(() => {
                 const caReel = livraisons.filter(l => l.statut === "Livré").reduce((acc, l) => acc + (Number(l.montant) || 0), 0);
                 const caPrevu = livraisons.reduce((acc, l) => acc + (Number(l.montant) || 0), 0);
                 const totalDepenses = depenses.reduce((acc, d) => acc + (Number(d.montant) || 0), 0);
                 const resteAEncaisser = livraisons.filter(l => l.statut !== "Livré").reduce((acc, l) => acc + ((Number(l.montant) || 0) - (Number(l.avance) || 0)), 0);
-                
                 return { caReel, caPrevu, totalDepenses, benefice: caReel - totalDepenses, resteAEncaisser };
             }, [livraisons, depenses]);
 
@@ -210,7 +242,7 @@
                     });
                 }
                 
-                notify("Commande Enregistrée", `Vente pour ${orderForm.nom} ajoutée avec succès.`, "success");
+                notify("Vente Enregistrée", `Dossier créé pour ${orderForm.nom} (${mnt} Ar).`, "success");
                 setOrderForm({ nom: "", telephone: "", lieu: "", montant: "", avance: "", typePaiement: "Avance", datePlanif: todayStr });
                 setShowSuggestions(false);
             };
@@ -218,7 +250,7 @@
             const handleUpdateClient = async () => {
                 if(!editingClient) return;
                 await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'clients', editingClient.id), { ...clientEditForm });
-                notify("Client Mis à jour", "Les informations du client ont été modifiées.", "success");
+                notify("Modification", "Informations du client mises à jour.", "success");
                 setEditingClient(null);
             };
 
@@ -230,16 +262,16 @@
                 link.href = URL.createObjectURL(blob);
                 link.download = `rasoa_export_${todayStr}.csv`;
                 link.click();
-                notify("Export Terminé", "Votre fichier CSV est prêt.", "info");
+                notify("Exportation", "Fichier prêt pour téléchargement.", "info");
             };
 
             const filterCounts = useMemo(() => ({
                 "Aujourd'hui": livraisons.filter(l => l.datePlanif === todayStr && l.statut !== 'Livré').length,
-                "Demain": alerts.tomorrowCount,
-                "Retards": alerts.lateCount,
+                "Demain": livraisons.filter(l => l.datePlanif === tomorrowStr && l.statut !== 'Livré').length,
+                "Retards": livraisons.filter(l => l.datePlanif <= todayStr && l.statut !== 'Livré').length,
                 "En attente": livraisons.filter(l => l.statut === "En attente").length,
                 "Livré": livraisons.filter(l => l.statut === "Livré").length
-            }), [livraisons, todayStr, alerts]);
+            }), [livraisons, todayStr, tomorrowStr]);
 
             const filteredLivraisons = useMemo(() => {
                 if (deliveryFilter === "Aujourd'hui") return livraisons.filter(l => l.datePlanif === todayStr && l.statut !== 'Livré');
@@ -251,14 +283,14 @@
 
             const formatDate = (s) => s ? s.split('-').reverse().join('/') : "";
 
-            if (!db) return h('div', { className: "h-screen flex items-center justify-center font-black animate-pulse text-indigo-600" }, "RASOA PRO CHARGEMENT...");
+            if (!db) return h('div', { className: "h-screen flex items-center justify-center font-black animate-pulse text-indigo-600" }, "INITIALISATION...");
 
             return h('div', { className: "min-h-screen pb-24" },
-                // Conteneur de Notifications Pop-up
+                // --- ZONE DE NOTIFICATIONS POP-UP (Style Facebook) ---
                 h('div', { className: "fixed top-4 left-0 right-0 z-[1000] flex flex-col items-center gap-3 px-4 pointer-events-none" }, 
                     notifications.map(n => h('div', { key: n.id, className: "pointer-events-auto" }, 
                         h('div', { 
-                            className: `notification-popup w-full max-w-sm bg-white rounded-[2rem] shadow-2xl border-l-8 p-4 flex items-center gap-4 ${
+                            className: `notification-popup w-full max-w-sm bg-white/95 backdrop-blur-md rounded-[2rem] shadow-2xl border-l-8 p-4 flex items-center gap-4 ${
                                 n.type === 'success' ? 'border-emerald-500' : 
                                 n.type === 'error' ? 'border-rose-500' : 
                                 n.type === 'warning' ? 'border-amber-500' : 'border-indigo-500'
@@ -283,31 +315,19 @@
                         h('div', { className: "w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-black italic shadow-lg" }, "R"),
                         h('div', {}, [
                             h('h1', { className: "font-black text-xl italic leading-none" }, "RASOA PRO"),
-                            h('p', { className: "text-[9px] font-black text-slate-400 uppercase tracking-widest" }, isOffline ? "MODE HORS-LIGNE" : "DASHBOARD CONNECTÉ")
+                            h('p', { className: "text-[9px] font-black text-slate-400 uppercase tracking-widest" }, isOffline ? "MODE HORS-LIGNE" : "SYNC CONNECTÉ")
                         ])
                     ),
-                    h('div', { className: "text-right" },
-                        h('p', { className: "text-[10px] font-black text-slate-400 uppercase" }, "Solde Prévu"),
-                        h('p', { className: "font-black text-rose-500" }, `${stats.resteAEncaisser.toLocaleString()} Ar`)
-                    )
+                    h('div', { className: "relative p-2" }, [
+                        h(Icon, { name: "bell", className: "text-slate-400" }),
+                        h('span', { className: "absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-rose-500 border-2 border-white rounded-full" })
+                    ])
                 ),
 
                 h('main', { className: "max-w-7xl mx-auto p-4 lg:p-8" },
-                    
                     activeTab === 'commandes' && h('div', { className: "space-y-6 animate-fadeIn" }, [
-                        h('div', { key: 'alert-zone', className: "flex gap-4 overflow-x-auto pb-2 scrollbar-hide" }, [
-                            alerts.lateCount > 0 && h('div', { key: 'late', onClick: () => setDeliveryFilter("Retards"), className: "cursor-pointer bg-rose-50 border border-rose-100 p-4 rounded-3xl flex items-center gap-4 transition-all" }, [
-                                h('div', {className:"w-10 h-10 bg-rose-500 rounded-2xl flex items-center justify-center text-white shadow-lg"}, h(Icon, {name:"bell", size:20})),
-                                h('div', {}, [h('p', {className:"text-[10px] font-black text-rose-400 uppercase"}, "Retards"), h('p', {className:"font-black text-rose-600 leading-tight"}, `${alerts.lateCount} livr.`)])
-                            ]),
-                            alerts.tomorrowCount > 0 && h('div', { key: 'tmw', onClick: () => setDeliveryFilter("Demain"), className: "cursor-pointer bg-indigo-50 border border-indigo-100 p-4 rounded-3xl flex items-center gap-4 transition-all" }, [
-                                h('div', {className:"w-10 h-10 bg-indigo-500 rounded-2xl flex items-center justify-center text-white shadow-lg"}, h(Icon, {name:"shoppingCart", size:20})),
-                                h('div', {}, [h('p', {className:"text-[10px] font-black text-indigo-400 uppercase"}, "Demain"), h('p', {className:"font-black text-indigo-600 leading-tight"}, `${alerts.tomorrowCount} cmd.`)])
-                            ])
-                        ]),
-
-                        h('div', { key: 'main-grid', className: "grid lg:grid-cols-3 gap-8" }, [
-                            h('div', { key: 'form-col', className: "lg:col-span-1" },
+                        h('div', { className: "grid lg:grid-cols-3 gap-8" }, [
+                            h('div', { className: "lg:col-span-1" },
                                 h('div', { className: "bg-white p-6 rounded-[2.5rem] shadow-xl border border-slate-100 sticky top-[100px]" },
                                     h('h2', { className: "font-black uppercase text-[11px] tracking-widest text-slate-400 mb-6" }, "Nouveau Dossier"),
                                     h('div', { className: "space-y-4 relative" },
@@ -327,49 +347,41 @@
                                         h('input', { value: orderForm.telephone, onChange: e => setOrderForm({...orderForm, telephone: e.target.value}), placeholder: "Tél", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold border outline-none" }),
                                         h('input', { value: orderForm.lieu, onChange: e => setOrderForm({...orderForm, lieu: e.target.value}), placeholder: "Adresse", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold border outline-none" }),
                                         h('div', { className: "grid grid-cols-2 gap-3" }, [
-                                            h('input', { key: 'd', type: "date", value: orderForm.datePlanif, onChange: e => setOrderForm({...orderForm, datePlanif: e.target.value}), className: "p-4 bg-slate-50 rounded-2xl font-bold border outline-none text-xs" }),
-                                            h('input', { key: 'm', type: "number", value: orderForm.montant, onChange: e => setOrderForm({...orderForm, montant: e.target.value}), placeholder: "Prix", className: "p-4 bg-indigo-50 rounded-2xl font-black border border-indigo-100 outline-none text-indigo-600" })
+                                            h('input', { type: "date", value: orderForm.datePlanif, onChange: e => setOrderForm({...orderForm, datePlanif: e.target.value}), className: "p-4 bg-slate-50 rounded-2xl font-bold border outline-none text-xs" }),
+                                            h('input', { type: "number", value: orderForm.montant, onChange: e => setOrderForm({...orderForm, montant: e.target.value}), placeholder: "Prix", className: "p-4 bg-indigo-50 rounded-2xl font-black border border-indigo-100 outline-none text-indigo-600" })
                                         ]),
                                         h('div', { className: "flex p-1 bg-slate-100 rounded-2xl" },
                                             ['Avance', 'Total'].map(type => h('button', { key: type, onClick: () => setOrderForm({...orderForm, typePaiement: type, avance: type === 'Total' ? orderForm.montant : ""}), className: `flex-1 py-2 rounded-xl font-black text-[10px] transition-all ${orderForm.typePaiement === type ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-400'}` }, type))
                                         ),
                                         orderForm.typePaiement === 'Avance' && h('input', { type: "number", value: orderForm.avance, onChange: e => setOrderForm({...orderForm, avance: e.target.value}), placeholder: "Acompte", className: "w-full p-4 bg-orange-50 rounded-2xl font-black border border-orange-100 outline-none text-orange-600" }),
-                                        h('button', { onClick: handleAddOrder, className: "w-full bg-indigo-600 text-white py-5 rounded-3xl font-black uppercase text-[11px] shadow-lg hover:bg-indigo-700 transition-all" }, "Valider")
+                                        h('button', { onClick: handleAddOrder, className: "w-full bg-indigo-600 text-white py-5 rounded-3xl font-black uppercase text-[11px] shadow-lg active:scale-95 transition-all" }, "Valider la vente")
                                     )
                                 )
                             ),
-                            h('div', { key: 'list-col', className: "lg:col-span-2 space-y-6" }, [
-                                h('div', { key: 'f', className: "flex gap-2 overflow-x-auto pb-2 scrollbar-hide sticky top-[80px] z-40 bg-slate-50/90 py-2 backdrop-blur-sm" }, 
+                            h('div', { className: "lg:col-span-2 space-y-6" }, [
+                                h('div', { className: "flex gap-2 overflow-x-auto pb-2 scrollbar-hide sticky top-[80px] z-40 bg-slate-50/90 py-2 backdrop-blur-sm" }, 
                                     Object.keys(filterCounts).map(f => h('button', { key: f, onClick: () => setDeliveryFilter(f), className: `flex items-center gap-2 px-5 py-3 rounded-full border font-black text-[10px] uppercase transition-all whitespace-nowrap ${deliveryFilter === f ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-400 border-slate-200'}` }, [
                                         f, h('span', { className: `px-1.5 py-0.5 rounded-md text-[9px] ${deliveryFilter === f ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}` }, filterCounts[f])
                                     ]))
                                 ),
-                                h('div', { key: 'l', className: "grid grid-cols-1 md:grid-cols-2 gap-4" }, 
+                                h('div', { className: "grid grid-cols-1 md:grid-cols-2 gap-4" }, 
                                     filteredLivraisons.map(l => h('div', { key: l.id, className: "bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm animate-fadeIn relative overflow-hidden" }, [
-                                        h('div', { key: 'h', className: "flex justify-between items-start" }, [
-                                            h('div', { key: 'i' }, [
-                                                h('p', {key:'n', className:"font-black uppercase text-slate-900 leading-tight"}, l.nom), 
-                                                h('p', {key:'t', className:"text-indigo-500 font-bold text-[10px] mb-2"}, l.telephone),
-                                                h('div', {key:'l', className:"flex items-center gap-1 text-slate-400 mb-1"}, [h(Icon, {name:"mapPin", size:10}), h('span', {className:"text-[10px] font-bold"}, l.lieu || "Lieu non défini")]),
-                                                h('div', {key:'dt', className:"flex items-center gap-1 text-indigo-400 font-black text-[9px] uppercase"}, [h(Icon, {name:"calendar", size:10}), formatDate(l.datePlanif)])
+                                        h('div', { className: "flex justify-between items-start" }, [
+                                            h('div', {}, [
+                                                h('p', {className:"font-black uppercase text-slate-900 leading-tight"}, l.nom), 
+                                                h('p', {className:"text-indigo-500 font-bold text-[10px] mb-2"}, l.telephone),
+                                                h('div', {className:"flex items-center gap-1 text-slate-400 mb-1 font-bold text-[10px]"}, [h(Icon, {name:"mapPin", size:10}), l.lieu || "Lieu non défini"]),
+                                                h('div', {className:"flex items-center gap-1 text-indigo-400 font-black text-[9px] uppercase"}, [h(Icon, {name:"calendar", size:10}), formatDate(l.datePlanif)])
                                             ]),
-                                            h('button', { key:'del', onClick: async () => { 
-                                                if (window.confirm("Supprimer ?")) {
-                                                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', l.id));
-                                                    notify("Suppression", "Commande supprimée définitivement.", "warning");
-                                                }
-                                            }, className: "p-2 text-slate-200 hover:text-rose-500" }, h(Icon, { name: "trash", size: 14 }))
+                                            h('button', { onClick: async () => { if (window.confirm("Supprimer ?")) { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', l.id)); notify("Supprimé", "Dossier retiré.", "warning"); } }, className: "p-2 text-slate-200 hover:text-rose-500" }, h(Icon, { name: "trash", size: 14 }))
                                         ]),
-                                        h('div', { key: 's', className: "flex justify-between border-t border-slate-50 mt-4 pt-4" }, [
-                                            h('div', { key: 't' }, [h('p', {className:"text-[8px] font-black text-slate-400 uppercase"}, "Montant"), h('p', {className:"font-black text-sm"}, `${(Number(l.montant)||0).toLocaleString()} Ar`)]),
-                                            h('div', { key: 'r' }, [h('p', {className:"text-[8px] font-black text-rose-400 uppercase"}, "Reste"), h('p', {className:"font-black text-rose-600 text-sm"}, `${((Number(l.montant)||0) - (Number(l.avance)||0)).toLocaleString()} Ar`)])
+                                        h('div', { className: "flex justify-between border-t border-slate-50 mt-4 pt-4" }, [
+                                            h('div', {}, [h('p', {className:"text-[8px] font-black text-slate-400 uppercase"}, "Montant"), h('p', {className:"font-black text-sm"}, `${(Number(l.montant)||0).toLocaleString()} Ar`)]),
+                                            h('div', {}, [h('p', {className:"text-[8px] font-black text-rose-400 uppercase"}, "Reste"), h('p', {className:"font-black text-rose-600 text-sm"}, `${((Number(l.montant)||0) - (Number(l.avance)||0)).toLocaleString()} Ar`)])
                                         ]),
                                         l.statut !== "Livré" ? 
-                                            h('button', { key: 'b', onClick: () => {
-                                                updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', l.id), { statut: 'Livré', avance: l.montant });
-                                                notify("Livraison Validée", `Paiement complet reçu pour ${l.nom}`, "success");
-                                            }, className: "w-full mt-4 bg-emerald-500 text-white py-3 rounded-2xl font-black uppercase text-[10px]" }, "Marquer Livré ✓") :
-                                            h('div', { key: 'lv', className: "w-full mt-4 bg-emerald-50 text-emerald-600 py-3 rounded-2xl font-black uppercase text-[10px] text-center" }, "Livraison Terminée")
+                                            h('button', { onClick: () => { updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', l.id), { statut: 'Livré', avance: l.montant }); notify("Succès", `Livraison confirmée pour ${l.nom}`, "success"); }, className: "w-full mt-4 bg-emerald-500 text-white py-3 rounded-2xl font-black uppercase text-[10px] active:scale-95 transition-all" }, "Confirmer Livraison ✓") :
+                                            h('div', { className: "w-full mt-4 bg-emerald-50 text-emerald-600 py-3 rounded-2xl font-black uppercase text-[10px] text-center" }, "Terminé")
                                     ]))
                                 )
                             ])
@@ -379,26 +391,21 @@
                     activeTab === 'clients' && h('div', { className: "space-y-6 animate-fadeIn" }, [
                         h('div', { className: "bg-white p-6 rounded-[2.5rem] shadow-sm border flex items-center gap-4" }, [
                             h(Icon, { name: "search", className: "text-slate-400" }),
-                            h('input', { value: clientSearch, onChange: e => setClientSearch(e.target.value), placeholder: "Chercher un client...", className: "w-full bg-transparent font-bold outline-none text-lg" })
+                            h('input', { value: clientSearch, onChange: e => setClientSearch(e.target.value), placeholder: "Rechercher un client...", className: "w-full bg-transparent font-bold outline-none text-lg" })
                         ]),
                         h('div', { className: "grid grid-cols-1 md:grid-cols-3 gap-6" }, 
-                            clients.filter(c => (c.nom?.toLowerCase() || "").includes(clientSearch.toLowerCase())).map((c, i) => h('div', { key: c.id || i, className: "bg-white p-8 rounded-[3rem] border shadow-sm flex flex-col items-center text-center relative group" }, [
+                            clients.filter(c => (c.nom?.toLowerCase() || "").includes(clientSearch.toLowerCase())).map((c, i) => h('div', { key: c.id || i, className: "bg-white p-8 rounded-[3rem] border shadow-sm flex flex-col items-center text-center relative" }, [
                                 h('button', { onClick: () => { setEditingClient(c); setClientEditForm({ nom: c.nom || "", telephone: c.telephone || "", lieu: c.lieu || "" }); }, className: "absolute top-6 right-6 p-2 text-slate-300 hover:text-indigo-600" }, h(Icon, { name: "edit", size: 16 })),
                                 h('div', { className: "w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4 font-black text-xl uppercase" }, (c.nom?.[0] || "?")),
                                 h('p', { className: "font-black text-xl mb-1 uppercase" }, c.nom),
-                                h('p', { className: "text-indigo-500 font-bold text-sm mb-4" }, c.telephone || "Pas de numéro"),
+                                h('p', { className: "text-indigo-500 font-bold text-sm mb-4" }, c.telephone || "Aucun numéro"),
                                 h('div', { className: "w-full grid grid-cols-2 gap-2 mb-6" }, [
                                     h('div', { className: "bg-slate-50 p-3 rounded-2xl" }, [h('p', {className:"text-[8px] font-black uppercase text-slate-400"}, "Volume"), h('p', {className:"font-black text-sm"}, `${(c.totalVentes || 0).toLocaleString()}`)]),
-                                    h('div', { className: "bg-emerald-50 p-3 rounded-2xl text-emerald-600" }, [h('p', {className:"text-[8px] font-black uppercase"}, "Statut"), h('p', {className:"font-black text-[10px]"}, "Actif")])
+                                    h('div', { className: "bg-emerald-50 p-3 rounded-2xl text-emerald-600" }, [h('p', {className:"text-[8px] font-black uppercase"}, "Etat"), h('p', {className:"font-black text-[10px]"}, "Actif")])
                                 ]),
                                 h('div', { className: "w-full flex gap-2" }, [
-                                    h('button', { onClick: () => { setOrderForm({...orderForm, nom: c.nom, telephone: c.telephone, lieu: c.lieu || ""}); setActiveTab('commandes'); }, className: "flex-1 bg-slate-900 text-white py-3 rounded-2xl font-black uppercase text-[9px]" }, "Nouvelle Commande"),
-                                    h('button', { onClick: async () => { 
-                                        if(window.confirm("Supprimer le client ?")) {
-                                            await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'clients', c.id));
-                                            notify("Suppression Client", `${c.nom} a été supprimé.`, "warning");
-                                        }
-                                    }, className: "p-3 bg-slate-50 text-rose-500 rounded-2xl" }, h(Icon, {name:"trash", size:14}))
+                                    h('button', { onClick: () => { setOrderForm({...orderForm, nom: c.nom, telephone: c.telephone, lieu: c.lieu || ""}); setActiveTab('commandes'); }, className: "flex-1 bg-slate-900 text-white py-3 rounded-2xl font-black uppercase text-[9px]" }, "Vendre"),
+                                    h('button', { onClick: async () => { if(window.confirm("Supprimer le client ?")) { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'clients', c.id)); notify("Suppression", `${c.nom} supprimé.`, "warning"); } }, className: "p-3 bg-slate-50 text-rose-500 rounded-2xl" }, h(Icon, {name:"trash", size:14}))
                                 ])
                             ]))
                         )
@@ -412,53 +419,47 @@
                                     h('input', { value: depenseForm.libelle, onChange: e => setDepenseForm({...depenseForm, libelle: e.target.value}), placeholder: "Libellé", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold border outline-none" }),
                                     h('input', { type: "number", value: depenseForm.montant, onChange: e => setDepenseForm({...depenseForm, montant: e.target.value}), placeholder: "Montant", className: "w-full p-4 bg-rose-50 rounded-2xl font-black border border-rose-100 outline-none text-rose-600" }),
                                     h('select', { value: depenseForm.categorie, onChange: e => setDepenseForm({...depenseForm, categorie: e.target.value}), className: "w-full p-4 bg-slate-50 rounded-2xl font-bold border outline-none" }, 
-                                        ['Stock', 'Loyer', 'Salaires', 'Transport', 'Marketing', 'Autre'].map(cat => h('option', { key: cat, value: cat }, cat))
+                                        ['Stock', 'Loyer', 'Salaires', 'Transport', 'Autre'].map(cat => h('option', { key: cat, value: cat }, cat))
                                     ),
                                     h('button', { onClick: async () => { 
                                         if(!depenseForm.libelle || !depenseForm.montant) return; 
                                         await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'depenses'), {...depenseForm, montant:Number(depenseForm.montant), timestamp:serverTimestamp()}); 
-                                        notify("Dépense Enregistrée", `-${depenseForm.montant} Ar retiré pour ${depenseForm.libelle}`, "warning");
+                                        notify("Dépense", `-${depenseForm.montant} Ar enregistré.`, "warning");
                                         setDepenseForm({libelle:"", montant:"", categorie:"Stock"}); 
-                                    }, className: "w-full bg-rose-500 text-white py-5 rounded-3xl font-black uppercase text-[11px] shadow-lg" }, "Valider la Sortie")
+                                    }, className: "w-full bg-rose-500 text-white py-5 rounded-3xl font-black uppercase text-[11px] shadow-lg" }, "Enregistrer Sortie")
                                 ])
                             ])
                         ),
                         h('div', { className: "lg:col-span-2 space-y-4" }, 
                             depenses.map(d => h('div', { key: d.id, className: "bg-white p-6 rounded-[2rem] border shadow-sm flex items-center justify-between" }, [
-                                h('div', {}, [h('p', {className:"font-black text-sm"}, d.libelle), h('span', {className:"text-[9px] font-black uppercase bg-slate-100 px-2 py-1 rounded text-slate-500"}, d.categorie)]),
-                                h('div', {className:"flex items-center gap-4"}, [h('p', {className:"font-black text-rose-600"}, `-${(Number(d.montant)).toLocaleString()} Ar`), h('button', {onClick:async () => {
-                                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'depenses', d.id));
-                                    notify("Annulation", "Dépense supprimée de la caisse.", "info");
-                                }, className:"text-slate-200 hover:text-rose-500"}, h(Icon, {name:"trash", size:14}))])
+                                h('div', {}, [h('p', {className:"font-black text-sm uppercase"}, d.libelle), h('span', {className:"text-[9px] font-black uppercase bg-slate-100 px-2 py-1 rounded text-slate-500"}, d.categorie)]),
+                                h('div', {className:"flex items-center gap-4"}, [h('p', {className:"font-black text-rose-600 text-sm"}, `-${(Number(d.montant)).toLocaleString()} Ar`), h('button', {onClick:async () => { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'depenses', d.id)); notify("Annulé", "Dépense supprimée.", "info"); }, className:"text-slate-200 hover:text-rose-500"}, h(Icon, {name:"trash", size:14}))])
                             ]))
                         )
                     ]),
 
                     activeTab === 'rapports' && h('div', { className: "space-y-8 animate-fadeIn" }, [
-                        h('div', { className: "grid grid-cols-2 gap-4" }, [
-                            h('button', { onClick: downloadCSV, className: "flex items-center justify-center gap-3 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm font-black uppercase text-[10px] text-emerald-600" }, [h(Icon, {name: "download", size: 18}), "Télécharger CSV"])
+                        h('div', { className: "grid grid-cols-1 md:grid-cols-2 gap-4" }, [
+                            h('button', { onClick: downloadCSV, className: "flex items-center justify-center gap-3 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm font-black uppercase text-[10px] text-emerald-600" }, [h(Icon, {name: "download", size: 18}), "Télécharger Rapport CSV"])
                         ]),
-                        h('div', { className: "grid grid-cols-1 md:grid-cols-4 gap-6" }, [
-                            h('div', { className: "bg-emerald-500 p-8 rounded-[3rem] text-white shadow-xl" }, [h('p', {className:"text-[10px] font-black uppercase opacity-70"}, "Recettes Réelles"), h('p', {className:"text-2xl font-black leading-tight"}, `${stats.caReel.toLocaleString()} Ar`)]),
-                            h('div', { className: "bg-indigo-600 p-8 rounded-[3rem] text-white shadow-xl" }, [h('p', {className:"text-[10px] font-black uppercase opacity-70"}, "Objectif Chiffre"), h('p', {className:"text-2xl font-black leading-tight"}, `${stats.caPrevu.toLocaleString()} Ar`)]),
-                            h('div', { className: "bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm" }, [h('p', {className:"text-[10px] font-black uppercase text-slate-400"}, "Total Dépenses"), h('p', {className:"text-2xl font-black text-rose-500 leading-tight"}, `${stats.totalDepenses.toLocaleString()} Ar`)]),
-                            h('div', { className: "bg-slate-900 p-8 rounded-[3rem] text-white shadow-xl" }, [h('p', {className:"text-[10px] font-black uppercase opacity-70"}, "Profit Net"), h('p', {className:"text-2xl font-black leading-tight"}, `${stats.benefice.toLocaleString()} Ar`)])
+                        h('div', { className: "grid grid-cols-2 md:grid-cols-4 gap-4" }, [
+                            h('div', { className: "bg-emerald-500 p-6 rounded-[2.5rem] text-white shadow-xl" }, [h('p', {className:"text-[9px] font-black uppercase opacity-70"}, "Caisse Réelle"), h('p', {className:"text-xl font-black leading-tight"}, `${stats.caReel.toLocaleString()} Ar`)]),
+                            h('div', { className: "bg-indigo-600 p-6 rounded-[2.5rem] text-white shadow-xl" }, [h('p', {className:"text-[9px] font-black uppercase opacity-70"}, "Objectif"), h('p', {className:"text-xl font-black leading-tight"}, `${stats.caPrevu.toLocaleString()} Ar`)]),
+                            h('div', { className: "bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm text-rose-500" }, [h('p', {className:"text-[9px] font-black uppercase opacity-70"}, "Dépenses"), h('p', {className:"text-xl font-black leading-tight"}, `${stats.totalDepenses.toLocaleString()} Ar`)]),
+                            h('div', { className: "bg-slate-900 p-6 rounded-[2.5rem] text-white shadow-xl" }, [h('p', {className:"text-[9px] font-black uppercase opacity-70"}, "Profit Net"), h('p', {className:"text-xl font-black leading-tight"}, `${stats.benefice.toLocaleString()} Ar`)])
                         ])
                     ])
                 ),
 
-                editingClient && h('div', { className: "fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4 animate-fadeIn" }, 
-                    h('div', { className: "bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl space-y-6" }, [
-                        h('div', { className: "flex justify-between items-center" }, [
-                            h('h2', { className: "font-black uppercase text-sm text-indigo-600" }, "Editer Fiche Client"),
-                            h('button', { onClick: () => setEditingClient(null), className: "p-2 bg-slate-50 rounded-xl" }, h(Icon, {name:"x", size: 20}))
-                        ]),
+                editingClient && h('div', { className: "fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4" }, 
+                    h('div', { className: "bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl space-y-6 animate-fadeIn" }, [
+                        h('div', { className: "flex justify-between items-center" }, [h('h2', { className: "font-black uppercase text-sm text-indigo-600" }, "Editer Client"), h('button', { onClick: () => setEditingClient(null), className: "p-2 bg-slate-50 rounded-xl" }, h(Icon, {name:"x", size: 20}))]),
                         h('div', { className: "space-y-4" }, [
-                            h('input', { value: clientEditForm.nom, onChange: e => setClientEditForm({...clientEditForm, nom: e.target.value}), placeholder: "Nom complet", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold border outline-none mt-1 focus:border-indigo-600" }),
-                            h('input', { value: clientEditForm.telephone, onChange: e => setClientEditForm({...clientEditForm, telephone: e.target.value}), placeholder: "Téléphone", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold border outline-none mt-1 focus:border-indigo-600" }),
-                            h('input', { value: clientEditForm.lieu, onChange: e => setClientEditForm({...clientEditForm, lieu: e.target.value}), placeholder: "Adresse habituelle", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold border outline-none mt-1 focus:border-indigo-600" })
+                            h('input', { value: clientEditForm.nom, onChange: e => setClientEditForm({...clientEditForm, nom: e.target.value}), placeholder: "Nom", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold border outline-none" }),
+                            h('input', { value: clientEditForm.telephone, onChange: e => setClientEditForm({...clientEditForm, telephone: e.target.value}), placeholder: "Tél", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold border outline-none" }),
+                            h('input', { value: clientEditForm.lieu, onChange: e => setClientEditForm({...clientEditForm, lieu: e.target.value}), placeholder: "Adresse", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold border outline-none" })
                         ]),
-                        h('button', { onClick: handleUpdateClient, className: "w-full bg-indigo-600 text-white py-5 rounded-3xl font-black uppercase text-[11px] shadow-lg" }, "Mettre à jour")
+                        h('button', { onClick: handleUpdateClient, className: "w-full bg-indigo-600 text-white py-5 rounded-3xl font-black uppercase text-[11px] shadow-lg" }, "Sauvegarder")
                     ])
                 ),
 
