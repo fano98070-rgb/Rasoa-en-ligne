@@ -7,7 +7,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3113/3113840.png">
-    <title>Rasoa Pro V10 - Notifications Natives</title>
+    <title>Rasoa Pro V10 - Alertes Fixes</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -22,14 +22,17 @@
             user-select: none;
         }
         
-        @keyframes slideIn {
-            from { transform: translateY(-100%) scale(0.9); opacity: 0; }
-            to { transform: translateY(0) scale(1); opacity: 1; }
+        /* Animation style "Message reçu" */
+        @keyframes popIn {
+            0% { transform: translateY(-120%) scale(0.5); opacity: 0; }
+            70% { transform: translateY(10%) scale(1.05); opacity: 1; }
+            100% { transform: translateY(0) scale(1); opacity: 1; }
         }
         
-        .notification-popup {
-            animation: slideIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        .message-popup {
+            animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
             pointer-events: auto;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
         }
 
         .animate-fadeIn { animation: fadeIn 0.3s ease-out forwards; }
@@ -106,7 +109,7 @@
 
             const [depenseForm, setDepenseForm] = useState({ libelle: "", montant: "", categorie: "Stock" });
 
-            // --- FONCTIONS NATIVES ---
+            // --- SYSTEME DE NOTIFICATION AVANCÉ ---
             
             const playNotificationSound = () => {
                 try {
@@ -116,63 +119,50 @@
                     oscillator.connect(gainNode);
                     gainNode.connect(audioCtx.destination);
                     oscillator.type = 'sine';
-                    oscillator.frequency.setValueAtTime(880, audioCtx.currentTime);
+                    oscillator.frequency.setValueAtTime(550, audioCtx.currentTime); // Son plus doux type "message"
                     gainNode.gain.setValueAtTime(0, audioCtx.currentTime);
                     gainNode.gain.linearRampToValueAtTime(0.1, audioCtx.currentTime + 0.01);
-                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.2);
+                    gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.3);
                     oscillator.start();
-                    oscillator.stop(audioCtx.currentTime + 0.2);
+                    oscillator.stop(audioCtx.currentTime + 0.3);
                 } catch(e) {}
             };
 
-            // Système de notification unifié (App + Système + Vibration + Son)
             const notify = (title, message, type = "info") => {
-                // 1. Vibration
-                if ("vibrate" in navigator) {
-                    navigator.vibrate([80, 40, 80]);
-                }
+                // 1. Vibration forte
+                if ("vibrate" in navigator) navigator.vibrate([100, 50, 100]);
 
-                // 2. Son
+                // 2. Sonnerie message
                 playNotificationSound();
 
-                // 3. UI Notification (Facebook Style)
+                // 3. Pop-up Interne (Ne disparaît pas automatiquement si c'est important)
                 const id = Date.now();
                 setNotifications(prev => [...prev, { id, title, message, type }]);
-                setTimeout(() => setNotifications(prev => prev.filter(n => n.id !== id)), 5000);
 
-                // 4. Notification Système (Barre de tâches)
+                // 4. Notification Barre de Tâche (Persistante)
                 if ("Notification" in window && Notification.permission === "granted") {
                     new Notification(`Rasoa Pro: ${title}`, {
                         body: message,
-                        icon: "https://cdn-icons-png.flaticon.com/512/3113/3113840.png"
+                        icon: "https://cdn-icons-png.flaticon.com/512/3113/3113840.png",
+                        requireInteraction: true, // Reste dans la barre de tâches jusqu'à effacement
+                        tag: "rasoa-alert" // Evite les doublons
                     });
                 }
             };
 
             useEffect(() => {
-                // Demande de permission notification système
                 if ("Notification" in window && Notification.permission === "default") {
                     Notification.requestPermission();
                 }
 
-                const handleOnline = () => { 
-                    setIsOffline(false); 
-                    notify("Connexion Rétablie", "Vos données sont en cours de synchronisation.", "success");
-                };
-                const handleOffline = () => { 
-                    setIsOffline(true); 
-                    notify("Mode Hors Ligne", "L'application fonctionne localement.", "warning");
-                };
+                const handleOnline = () => { setIsOffline(false); notify("Connexion", "Vous êtes de nouveau en ligne.", "success"); };
+                const handleOffline = () => { setIsOffline(true); notify("Mode Hors-Ligne", "Attention : plus de connexion internet.", "warning"); };
                 window.addEventListener('online', handleOnline);
                 window.addEventListener('offline', handleOffline);
                 
                 const app = initializeApp(firebaseConfig);
                 const firestore = getFirestore(app);
-                
-                enableIndexedDbPersistence(firestore).catch((err) => {
-                    console.warn("La persistance Firestore a échoué:", err.code);
-                });
-
+                enableIndexedDbPersistence(firestore).catch(() => {});
                 setDb(firestore);
 
                 return () => {
@@ -189,32 +179,25 @@
 
                 const unsubLiv = onSnapshot(query(livRef, orderBy('timestamp', 'desc')), s => {
                     const data = s.docs.map(d => ({id: d.id, ...d.data()}));
-                    
-                    const late = data.filter(l => l.datePlanif <= todayStr && l.statut !== 'Livré').length;
-                    if (late > 0 && livraisons.length === 0) {
-                        notify("Alertes Retards", `Attention, ${late} livraisons sont en retard !`, "error");
+                    // Alerte retard au chargement
+                    const lateCount = data.filter(l => l.datePlanif < todayStr && l.statut !== 'Livré').length;
+                    if (lateCount > 0 && livraisons.length === 0) {
+                        notify("Retards de Livraison", `Vous avez ${lateCount} livraisons en retard dans votre liste !`, "error");
                     }
-                    
                     setLivraisons(data);
                 });
                 
-                const unsubDep = onSnapshot(query(depRef, orderBy('timestamp', 'desc')), s => {
-                    setDepenses(s.docs.map(d => ({id: d.id, ...d.data()})));
-                });
+                onSnapshot(query(depRef, orderBy('timestamp', 'desc')), s => setDepenses(s.docs.map(d => ({id: d.id, ...d.data()}))));
+                onSnapshot(cliRef, s => setClients(s.docs.map(d => ({id: d.id, ...d.data()}))));
 
-                const unsubCli = onSnapshot(cliRef, s => {
-                    setClients(s.docs.map(d => ({id: d.id, ...d.data()})));
-                });
-
-                return () => { unsubLiv(); unsubDep(); unsubCli(); };
+                return () => unsubLiv();
             }, [db]);
 
             const stats = useMemo(() => {
                 const caReel = livraisons.filter(l => l.statut === "Livré").reduce((acc, l) => acc + (Number(l.montant) || 0), 0);
                 const caPrevu = livraisons.reduce((acc, l) => acc + (Number(l.montant) || 0), 0);
                 const totalDepenses = depenses.reduce((acc, d) => acc + (Number(d.montant) || 0), 0);
-                const resteAEncaisser = livraisons.filter(l => l.statut !== "Livré").reduce((acc, l) => acc + ((Number(l.montant) || 0) - (Number(l.avance) || 0)), 0);
-                return { caReel, caPrevu, totalDepenses, benefice: caReel - totalDepenses, resteAEncaisser };
+                return { caReel, caPrevu, totalDepenses, benefice: caReel - totalDepenses };
             }, [livraisons, depenses]);
 
             const handleAddOrder = async () => {
@@ -222,10 +205,9 @@
                 const mnt = Number(orderForm.montant) || 0;
                 const av = orderForm.typePaiement === "Total" ? mnt : (Number(orderForm.avance) || 0);
                 
-                const orderData = { ...orderForm, montant: mnt, avance: av, statut: "En attente", timestamp: serverTimestamp() };
-                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'livraisons'), orderData);
+                await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'livraisons'), { ...orderForm, montant: mnt, avance: av, statut: "En attente", timestamp: serverTimestamp() });
 
-                const existingClient = clients.find(c => c.nom === orderForm.nom || (orderForm.telephone && c.telephone === orderForm.telephone));
+                const existingClient = clients.find(c => c.nom === orderForm.nom);
                 if (existingClient) {
                     await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'clients', existingClient.id), {
                         totalVentes: (existingClient.totalVentes || 0) + mnt,
@@ -233,67 +215,32 @@
                         lieu: orderForm.lieu || existingClient.lieu || ""
                     });
                 } else {
-                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'clients'), {
-                        nom: orderForm.nom,
-                        telephone: orderForm.telephone,
-                        lieu: orderForm.lieu || "",
-                        totalVentes: mnt,
-                        dateCreation: serverTimestamp()
-                    });
+                    await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'clients'), { nom: orderForm.nom, telephone: orderForm.telephone, lieu: orderForm.lieu || "", totalVentes: mnt, dateCreation: serverTimestamp() });
                 }
                 
-                notify("Vente Enregistrée", `Dossier créé pour ${orderForm.nom} (${mnt} Ar).`, "success");
+                notify("Nouvelle Commande", `${orderForm.nom} : ${mnt.toLocaleString()} Ar enregistré.`, "success");
                 setOrderForm({ nom: "", telephone: "", lieu: "", montant: "", avance: "", typePaiement: "Avance", datePlanif: todayStr });
-                setShowSuggestions(false);
             };
-
-            const handleUpdateClient = async () => {
-                if(!editingClient) return;
-                await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'clients', editingClient.id), { ...clientEditForm });
-                notify("Modification", "Informations du client mises à jour.", "success");
-                setEditingClient(null);
-            };
-
-            const downloadCSV = () => {
-                let csvRows = ["RAPPORT GLOBAL RASOA PRO", `CA Encaisse;${stats.caReel};Ar`, `CA Total;${stats.caPrevu};Ar`, `Depenses;${stats.totalDepenses};Ar`, `Net;${stats.benefice};Ar`, "", "DATE;TYPE;NOM;MONTANT;STATUT;TELEPHONE;LIEU"];
-                livraisons.forEach(l => csvRows.push(`${l.datePlanif};VENTE;${l.nom};${l.montant};${l.statut};${l.telephone || ''};${l.lieu || ''}`));
-                const blob = new Blob([csvRows.join("\n")], { type: 'text/csv;charset=utf-8;' });
-                const link = document.createElement("a");
-                link.href = URL.createObjectURL(blob);
-                link.download = `rasoa_export_${todayStr}.csv`;
-                link.click();
-                notify("Exportation", "Fichier prêt pour téléchargement.", "info");
-            };
-
-            const filterCounts = useMemo(() => ({
-                "Aujourd'hui": livraisons.filter(l => l.datePlanif === todayStr && l.statut !== 'Livré').length,
-                "Demain": livraisons.filter(l => l.datePlanif === tomorrowStr && l.statut !== 'Livré').length,
-                "Retards": livraisons.filter(l => l.datePlanif <= todayStr && l.statut !== 'Livré').length,
-                "En attente": livraisons.filter(l => l.statut === "En attente").length,
-                "Livré": livraisons.filter(l => l.statut === "Livré").length
-            }), [livraisons, todayStr, tomorrowStr]);
 
             const filteredLivraisons = useMemo(() => {
                 if (deliveryFilter === "Aujourd'hui") return livraisons.filter(l => l.datePlanif === todayStr && l.statut !== 'Livré');
                 if (deliveryFilter === "Demain") return livraisons.filter(l => l.datePlanif === tomorrowStr && l.statut !== 'Livré');
-                if (deliveryFilter === "Retards") return livraisons.filter(l => l.datePlanif <= todayStr && l.statut !== 'Livré');
+                if (deliveryFilter === "Retards") return livraisons.filter(l => l.datePlanif < todayStr && l.statut !== 'Livré');
                 if (deliveryFilter === "En attente") return livraisons.filter(l => l.statut === "En attente");
                 return livraisons.filter(l => l.statut === deliveryFilter);
-            }, [livraisons, deliveryFilter, todayStr, tomorrowStr]);
+            }, [livraisons, deliveryFilter, todayStr]);
 
-            const formatDate = (s) => s ? s.split('-').reverse().join('/') : "";
-
-            if (!db) return h('div', { className: "h-screen flex items-center justify-center font-black animate-pulse text-indigo-600" }, "INITIALISATION...");
+            if (!db) return h('div', { className: "h-screen flex items-center justify-center font-black animate-pulse text-indigo-600" }, "CHARGEMENT...");
 
             return h('div', { className: "min-h-screen pb-24" },
-                // --- ZONE DE NOTIFICATIONS POP-UP (Style Facebook) ---
+                // --- ZONE DE MESSAGES POP-UP (Persistants jusqu'à suppression manuelle) ---
                 h('div', { className: "fixed top-4 left-0 right-0 z-[1000] flex flex-col items-center gap-3 px-4 pointer-events-none" }, 
-                    notifications.map(n => h('div', { key: n.id, className: "pointer-events-auto" }, 
+                    notifications.map(n => h('div', { key: n.id, className: "message-popup w-full max-w-sm pointer-events-auto" }, 
                         h('div', { 
-                            className: `notification-popup w-full max-w-sm bg-white/95 backdrop-blur-md rounded-[2rem] shadow-2xl border-l-8 p-4 flex items-center gap-4 ${
-                                n.type === 'success' ? 'border-emerald-500' : 
-                                n.type === 'error' ? 'border-rose-500' : 
-                                n.type === 'warning' ? 'border-amber-500' : 'border-indigo-500'
+                            className: `bg-white/95 backdrop-blur-xl rounded-[2.5rem] border-2 flex items-center gap-4 p-4 ${
+                                n.type === 'success' ? 'border-emerald-500 shadow-emerald-100' : 
+                                n.type === 'error' ? 'border-rose-500 shadow-rose-100' : 
+                                n.type === 'warning' ? 'border-amber-500 shadow-amber-100' : 'border-indigo-500 shadow-indigo-100'
                             }` 
                         }, [
                             h('div', { className: `w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${
@@ -302,25 +249,28 @@
                                 n.type === 'warning' ? 'bg-amber-100 text-amber-600' : 'bg-indigo-100 text-indigo-600'
                             }` }, h(Icon, { name: n.type === 'success' ? 'check' : n.type === 'error' ? 'bell' : 'info', size: 22 })),
                             h('div', { className: "flex-1 overflow-hidden" }, [
-                                h('h4', { className: "font-black text-[13px] uppercase tracking-tight" }, n.title),
-                                h('p', { className: "text-slate-500 text-[11px] font-semibold truncate" }, n.message)
+                                h('h4', { className: "font-extrabold text-[12px] uppercase tracking-tighter" }, n.title),
+                                h('p', { className: "text-slate-500 text-[11px] font-bold leading-tight" }, n.message)
                             ]),
-                            h('button', { onClick: () => setNotifications(prev => prev.filter(notif => notif.id !== n.id)), className: "p-2 text-slate-300" }, h(Icon, { name: "x", size: 16 }))
+                            h('button', { 
+                                onClick: () => setNotifications(prev => prev.filter(notif => notif.id !== n.id)),
+                                className: "bg-slate-100 hover:bg-slate-200 p-2 rounded-full text-slate-600 transition-colors"
+                            }, h(Icon, { name: "x", size: 14 }))
                         ])
                     ))
                 ),
 
                 h('header', { className: "bg-white border-b px-6 py-4 flex items-center justify-between sticky top-0 z-[100] shadow-sm" },
                     h('div', { className: "flex items-center gap-3" },
-                        h('div', { className: "w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-black italic shadow-lg" }, "R"),
+                        h('div', { className: "w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-black italic" }, "R"),
                         h('div', {}, [
                             h('h1', { className: "font-black text-xl italic leading-none" }, "RASOA PRO"),
-                            h('p', { className: "text-[9px] font-black text-slate-400 uppercase tracking-widest" }, isOffline ? "MODE HORS-LIGNE" : "SYNC CONNECTÉ")
+                            h('p', { className: "text-[9px] font-black text-slate-400" }, isOffline ? "HORS-LIGNE" : "SYNC ACTIVE")
                         ])
                     ),
                     h('div', { className: "relative p-2" }, [
                         h(Icon, { name: "bell", className: "text-slate-400" }),
-                        h('span', { className: "absolute top-1.5 right-1.5 w-2.5 h-2.5 bg-rose-500 border-2 border-white rounded-full" })
+                        notifications.length > 0 && h('span', { className: "absolute top-1.5 right-1.5 w-3 h-3 bg-rose-500 border-2 border-white rounded-full flex items-center justify-center text-[7px] text-white font-bold" }, notifications.length)
                     ])
                 ),
 
@@ -329,7 +279,6 @@
                         h('div', { className: "grid lg:grid-cols-3 gap-8" }, [
                             h('div', { className: "lg:col-span-1" },
                                 h('div', { className: "bg-white p-6 rounded-[2.5rem] shadow-xl border border-slate-100 sticky top-[100px]" },
-                                    h('h2', { className: "font-black uppercase text-[11px] tracking-widest text-slate-400 mb-6" }, "Nouveau Dossier"),
                                     h('div', { className: "space-y-4 relative" },
                                         h('div', { className: "relative" },
                                             h('input', { value: orderForm.nom, onChange: e => { 
@@ -360,28 +309,25 @@
                             ),
                             h('div', { className: "lg:col-span-2 space-y-6" }, [
                                 h('div', { className: "flex gap-2 overflow-x-auto pb-2 scrollbar-hide sticky top-[80px] z-40 bg-slate-50/90 py-2 backdrop-blur-sm" }, 
-                                    Object.keys(filterCounts).map(f => h('button', { key: f, onClick: () => setDeliveryFilter(f), className: `flex items-center gap-2 px-5 py-3 rounded-full border font-black text-[10px] uppercase transition-all whitespace-nowrap ${deliveryFilter === f ? 'bg-slate-900 text-white border-slate-900' : 'bg-white text-slate-400 border-slate-200'}` }, [
-                                        f, h('span', { className: `px-1.5 py-0.5 rounded-md text-[9px] ${deliveryFilter === f ? 'bg-white/20 text-white' : 'bg-slate-100 text-slate-500'}` }, filterCounts[f])
-                                    ]))
+                                    ["Aujourd'hui", "Demain", "Retards", "En attente", "Livré"].map(f => h('button', { key: f, onClick: () => setDeliveryFilter(f), className: `flex items-center gap-2 px-5 py-3 rounded-full border font-black text-[10px] uppercase transition-all whitespace-nowrap ${deliveryFilter === f ? 'bg-slate-900 text-white' : 'bg-white text-slate-400 border-slate-200'}` }, f))
                                 ),
                                 h('div', { className: "grid grid-cols-1 md:grid-cols-2 gap-4" }, 
-                                    filteredLivraisons.map(l => h('div', { key: l.id, className: "bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm animate-fadeIn relative overflow-hidden" }, [
+                                    filteredLivraisons.map(l => h('div', { key: l.id, className: "bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm animate-fadeIn" }, [
                                         h('div', { className: "flex justify-between items-start" }, [
                                             h('div', {}, [
                                                 h('p', {className:"font-black uppercase text-slate-900 leading-tight"}, l.nom), 
                                                 h('p', {className:"text-indigo-500 font-bold text-[10px] mb-2"}, l.telephone),
                                                 h('div', {className:"flex items-center gap-1 text-slate-400 mb-1 font-bold text-[10px]"}, [h(Icon, {name:"mapPin", size:10}), l.lieu || "Lieu non défini"]),
-                                                h('div', {className:"flex items-center gap-1 text-indigo-400 font-black text-[9px] uppercase"}, [h(Icon, {name:"calendar", size:10}), formatDate(l.datePlanif)])
+                                                h('div', {className:"flex items-center gap-1 text-indigo-400 font-black text-[9px] uppercase"}, [h(Icon, {name:"calendar", size:10}), l.datePlanif])
                                             ]),
-                                            h('button', { onClick: async () => { if (window.confirm("Supprimer ?")) { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', l.id)); notify("Supprimé", "Dossier retiré.", "warning"); } }, className: "p-2 text-slate-200 hover:text-rose-500" }, h(Icon, { name: "trash", size: 14 }))
+                                            h('button', { onClick: async () => { if (window.confirm("Supprimer ?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', l.id)); }, className: "p-2 text-slate-200 hover:text-rose-500" }, h(Icon, { name: "trash", size: 14 }))
                                         ]),
                                         h('div', { className: "flex justify-between border-t border-slate-50 mt-4 pt-4" }, [
                                             h('div', {}, [h('p', {className:"text-[8px] font-black text-slate-400 uppercase"}, "Montant"), h('p', {className:"font-black text-sm"}, `${(Number(l.montant)||0).toLocaleString()} Ar`)]),
                                             h('div', {}, [h('p', {className:"text-[8px] font-black text-rose-400 uppercase"}, "Reste"), h('p', {className:"font-black text-rose-600 text-sm"}, `${((Number(l.montant)||0) - (Number(l.avance)||0)).toLocaleString()} Ar`)])
                                         ]),
-                                        l.statut !== "Livré" ? 
-                                            h('button', { onClick: () => { updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', l.id), { statut: 'Livré', avance: l.montant }); notify("Succès", `Livraison confirmée pour ${l.nom}`, "success"); }, className: "w-full mt-4 bg-emerald-500 text-white py-3 rounded-2xl font-black uppercase text-[10px] active:scale-95 transition-all" }, "Confirmer Livraison ✓") :
-                                            h('div', { className: "w-full mt-4 bg-emerald-50 text-emerald-600 py-3 rounded-2xl font-black uppercase text-[10px] text-center" }, "Terminé")
+                                        l.statut !== "Livré" && 
+                                            h('button', { onClick: () => { updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', l.id), { statut: 'Livré', avance: l.montant }); notify("Livré !", `Le colis de ${l.nom} est validé.`, "success"); }, className: "w-full mt-4 bg-emerald-500 text-white py-3 rounded-2xl font-black uppercase text-[10px] active:scale-95 transition-all shadow-md shadow-emerald-100" }, "Confirmer Livraison ✓")
                                     ]))
                                 )
                             ])
@@ -394,8 +340,7 @@
                             h('input', { value: clientSearch, onChange: e => setClientSearch(e.target.value), placeholder: "Rechercher un client...", className: "w-full bg-transparent font-bold outline-none text-lg" })
                         ]),
                         h('div', { className: "grid grid-cols-1 md:grid-cols-3 gap-6" }, 
-                            clients.filter(c => (c.nom?.toLowerCase() || "").includes(clientSearch.toLowerCase())).map((c, i) => h('div', { key: c.id || i, className: "bg-white p-8 rounded-[3rem] border shadow-sm flex flex-col items-center text-center relative" }, [
-                                h('button', { onClick: () => { setEditingClient(c); setClientEditForm({ nom: c.nom || "", telephone: c.telephone || "", lieu: c.lieu || "" }); }, className: "absolute top-6 right-6 p-2 text-slate-300 hover:text-indigo-600" }, h(Icon, { name: "edit", size: 16 })),
+                            clients.filter(c => (c.nom?.toLowerCase() || "").includes(clientSearch.toLowerCase())).map(c => h('div', { key: c.id, className: "bg-white p-8 rounded-[3rem] border shadow-sm flex flex-col items-center text-center relative" }, [
                                 h('div', { className: "w-16 h-16 bg-slate-100 rounded-full flex items-center justify-center mb-4 font-black text-xl uppercase" }, (c.nom?.[0] || "?")),
                                 h('p', { className: "font-black text-xl mb-1 uppercase" }, c.nom),
                                 h('p', { className: "text-indigo-500 font-bold text-sm mb-4" }, c.telephone || "Aucun numéro"),
@@ -403,10 +348,7 @@
                                     h('div', { className: "bg-slate-50 p-3 rounded-2xl" }, [h('p', {className:"text-[8px] font-black uppercase text-slate-400"}, "Volume"), h('p', {className:"font-black text-sm"}, `${(c.totalVentes || 0).toLocaleString()}`)]),
                                     h('div', { className: "bg-emerald-50 p-3 rounded-2xl text-emerald-600" }, [h('p', {className:"text-[8px] font-black uppercase"}, "Etat"), h('p', {className:"font-black text-[10px]"}, "Actif")])
                                 ]),
-                                h('div', { className: "w-full flex gap-2" }, [
-                                    h('button', { onClick: () => { setOrderForm({...orderForm, nom: c.nom, telephone: c.telephone, lieu: c.lieu || ""}); setActiveTab('commandes'); }, className: "flex-1 bg-slate-900 text-white py-3 rounded-2xl font-black uppercase text-[9px]" }, "Vendre"),
-                                    h('button', { onClick: async () => { if(window.confirm("Supprimer le client ?")) { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'clients', c.id)); notify("Suppression", `${c.nom} supprimé.`, "warning"); } }, className: "p-3 bg-slate-50 text-rose-500 rounded-2xl" }, h(Icon, {name:"trash", size:14}))
-                                ])
+                                h('button', { onClick: () => { setOrderForm({...orderForm, nom: c.nom, telephone: c.telephone, lieu: c.lieu || ""}); setActiveTab('commandes'); }, className: "w-full bg-slate-900 text-white py-3 rounded-2xl font-black uppercase text-[9px]" }, "Nouvelle vente")
                             ]))
                         )
                     ]),
@@ -418,48 +360,30 @@
                                 h('div', { className: "space-y-4" }, [
                                     h('input', { value: depenseForm.libelle, onChange: e => setDepenseForm({...depenseForm, libelle: e.target.value}), placeholder: "Libellé", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold border outline-none" }),
                                     h('input', { type: "number", value: depenseForm.montant, onChange: e => setDepenseForm({...depenseForm, montant: e.target.value}), placeholder: "Montant", className: "w-full p-4 bg-rose-50 rounded-2xl font-black border border-rose-100 outline-none text-rose-600" }),
-                                    h('select', { value: depenseForm.categorie, onChange: e => setDepenseForm({...depenseForm, categorie: e.target.value}), className: "w-full p-4 bg-slate-50 rounded-2xl font-bold border outline-none" }, 
-                                        ['Stock', 'Loyer', 'Salaires', 'Transport', 'Autre'].map(cat => h('option', { key: cat, value: cat }, cat))
-                                    ),
                                     h('button', { onClick: async () => { 
                                         if(!depenseForm.libelle || !depenseForm.montant) return; 
                                         await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'depenses'), {...depenseForm, montant:Number(depenseForm.montant), timestamp:serverTimestamp()}); 
-                                        notify("Dépense", `-${depenseForm.montant} Ar enregistré.`, "warning");
+                                        notify("Dépense Enregistrée", `Sortie de ${(Number(depenseForm.montant)).toLocaleString()} Ar.`, "warning");
                                         setDepenseForm({libelle:"", montant:"", categorie:"Stock"}); 
-                                    }, className: "w-full bg-rose-500 text-white py-5 rounded-3xl font-black uppercase text-[11px] shadow-lg" }, "Enregistrer Sortie")
+                                    }, className: "w-full bg-rose-500 text-white py-5 rounded-3xl font-black uppercase text-[11px] shadow-lg shadow-rose-100" }, "Enregistrer Sortie")
                                 ])
                             ])
                         ),
                         h('div', { className: "lg:col-span-2 space-y-4" }, 
                             depenses.map(d => h('div', { key: d.id, className: "bg-white p-6 rounded-[2rem] border shadow-sm flex items-center justify-between" }, [
                                 h('div', {}, [h('p', {className:"font-black text-sm uppercase"}, d.libelle), h('span', {className:"text-[9px] font-black uppercase bg-slate-100 px-2 py-1 rounded text-slate-500"}, d.categorie)]),
-                                h('div', {className:"flex items-center gap-4"}, [h('p', {className:"font-black text-rose-600 text-sm"}, `-${(Number(d.montant)).toLocaleString()} Ar`), h('button', {onClick:async () => { await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'depenses', d.id)); notify("Annulé", "Dépense supprimée.", "info"); }, className:"text-slate-200 hover:text-rose-500"}, h(Icon, {name:"trash", size:14}))])
+                                h('p', {className:"font-black text-rose-600 text-sm"}, `-${(Number(d.montant)).toLocaleString()} Ar`)
                             ]))
                         )
                     ]),
 
                     activeTab === 'rapports' && h('div', { className: "space-y-8 animate-fadeIn" }, [
-                        h('div', { className: "grid grid-cols-1 md:grid-cols-2 gap-4" }, [
-                            h('button', { onClick: downloadCSV, className: "flex items-center justify-center gap-3 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm font-black uppercase text-[10px] text-emerald-600" }, [h(Icon, {name: "download", size: 18}), "Télécharger Rapport CSV"])
-                        ]),
                         h('div', { className: "grid grid-cols-2 md:grid-cols-4 gap-4" }, [
-                            h('div', { className: "bg-emerald-500 p-6 rounded-[2.5rem] text-white shadow-xl" }, [h('p', {className:"text-[9px] font-black uppercase opacity-70"}, "Caisse Réelle"), h('p', {className:"text-xl font-black leading-tight"}, `${stats.caReel.toLocaleString()} Ar`)]),
-                            h('div', { className: "bg-indigo-600 p-6 rounded-[2.5rem] text-white shadow-xl" }, [h('p', {className:"text-[9px] font-black uppercase opacity-70"}, "Objectif"), h('p', {className:"text-xl font-black leading-tight"}, `${stats.caPrevu.toLocaleString()} Ar`)]),
-                            h('div', { className: "bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm text-rose-500" }, [h('p', {className:"text-[9px] font-black uppercase opacity-70"}, "Dépenses"), h('p', {className:"text-xl font-black leading-tight"}, `${stats.totalDepenses.toLocaleString()} Ar`)]),
-                            h('div', { className: "bg-slate-900 p-6 rounded-[2.5rem] text-white shadow-xl" }, [h('p', {className:"text-[9px] font-black uppercase opacity-70"}, "Profit Net"), h('p', {className:"text-xl font-black leading-tight"}, `${stats.benefice.toLocaleString()} Ar`)])
+                            h('div', { className: "bg-emerald-500 p-6 rounded-[2.5rem] text-white shadow-xl shadow-emerald-100" }, [h('p', {className:"text-[9px] font-black uppercase opacity-70"}, "Caisse Réelle"), h('p', {className:"text-xl font-black leading-tight"}, `${stats.caReel.toLocaleString()} Ar`)]),
+                            h('div', { className: "bg-indigo-600 p-6 rounded-[2.5rem] text-white shadow-xl shadow-indigo-100" }, [h('p', {className:"text-[9px] font-black uppercase opacity-70"}, "Objectif Global"), h('p', {className:"text-xl font-black leading-tight"}, `${stats.caPrevu.toLocaleString()} Ar`)]),
+                            h('div', { className: "bg-white p-6 rounded-[2.5rem] border border-slate-100 shadow-sm text-rose-500" }, [h('p', {className:"text-[9px] font-black uppercase opacity-70"}, "Total Dépenses"), h('p', {className:"text-xl font-black leading-tight"}, `${stats.totalDepenses.toLocaleString()} Ar`)]),
+                            h('div', { className: "bg-slate-900 p-6 rounded-[2.5rem] text-white shadow-xl shadow-slate-200" }, [h('p', {className:"text-[9px] font-black uppercase opacity-70"}, "Net Disponible"), h('p', {className:"text-xl font-black leading-tight"}, `${stats.benefice.toLocaleString()} Ar`)])
                         ])
-                    ])
-                ),
-
-                editingClient && h('div', { className: "fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[200] flex items-center justify-center p-4" }, 
-                    h('div', { className: "bg-white w-full max-w-md rounded-[2.5rem] p-8 shadow-2xl space-y-6 animate-fadeIn" }, [
-                        h('div', { className: "flex justify-between items-center" }, [h('h2', { className: "font-black uppercase text-sm text-indigo-600" }, "Editer Client"), h('button', { onClick: () => setEditingClient(null), className: "p-2 bg-slate-50 rounded-xl" }, h(Icon, {name:"x", size: 20}))]),
-                        h('div', { className: "space-y-4" }, [
-                            h('input', { value: clientEditForm.nom, onChange: e => setClientEditForm({...clientEditForm, nom: e.target.value}), placeholder: "Nom", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold border outline-none" }),
-                            h('input', { value: clientEditForm.telephone, onChange: e => setClientEditForm({...clientEditForm, telephone: e.target.value}), placeholder: "Tél", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold border outline-none" }),
-                            h('input', { value: clientEditForm.lieu, onChange: e => setClientEditForm({...clientEditForm, lieu: e.target.value}), placeholder: "Adresse", className: "w-full p-4 bg-slate-50 rounded-2xl font-bold border outline-none" })
-                        ]),
-                        h('button', { onClick: handleUpdateClient, className: "w-full bg-indigo-600 text-white py-5 rounded-3xl font-black uppercase text-[11px] shadow-lg" }, "Sauvegarder")
                     ])
                 ),
 
