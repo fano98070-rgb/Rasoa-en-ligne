@@ -7,7 +7,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/3113/3113840.png">
-    <title>Rasoa Pro V10 - Stable</title>
+    <title>Rasoa Pro V10 - Notifications</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -21,31 +21,24 @@
             -webkit-tap-highlight-color: transparent; 
             user-select: none;
         }
+        
+        @keyframes slideIn {
+            from { transform: translateY(-100%) scale(0.9); opacity: 0; }
+            to { transform: translateY(0) scale(1); opacity: 1; }
+        }
+        
+        .notification-popup {
+            animation: slideIn 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+
         .animate-fadeIn { animation: fadeIn 0.3s ease-out forwards; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
         .scrollbar-hide::-webkit-scrollbar { display: none; }
         .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
-        
-        .offline-status {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            background: #f59e0b;
-            color: white;
-            text-align: center;
-            font-size: 10px;
-            font-weight: 800;
-            padding: 4px;
-            z-index: 9999;
-            text-transform: uppercase;
-            display: none;
-        }
-        body.is-offline .offline-status { display: block; }
     </style>
 </head>
 <body class="bg-slate-50 text-slate-900 text-[13px] md:text-[14px]">
-    <div class="offline-status">Mode Hors Ligne Activé - Synchronisation auto au retour d'internet</div>
     <div id="root"></div>
 
     <script type="module">
@@ -77,7 +70,9 @@
                 download: [h('path', { key: '1', d: "M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" }), h('polyline', { key: '2', points: "7 10 12 15 17 10" }), h('line', { key: '3', x1: "12", y1: "15", x2: "12", y2: "3" })],
                 edit: [h('path', { key: '1', d: "M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" }), h('path', { key: '2', d: "M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" })],
                 x: [h('line', { key: '1', x1: "18", y1: "6", x2: "6", y2: "18" }), h('line', { key: '2', x1: "6", y1: "6", x2: "18", y2: "18" })],
-                bell: [h('path', { key: '1', d: "M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" }), h('path', { key: '2', d: "M13.73 21a2 2 0 0 1-3.46 0" })]
+                bell: [h('path', { key: '1', d: "M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" }), h('path', { key: '2', d: "M13.73 21a2 2 0 0 1-3.46 0" })],
+                check: [h('polyline', { key: '1', points: "20 6 9 17 4 12" })],
+                info: [h('circle', { key: '1', cx: "12", cy: "12", r: "10" }), h('line', { key: '2', x1: "12", y1: "16", x2: "12", y2: "12" }), h('line', { key: '3', x1: "12", y1: "8", x2: "12.01", y2: "8" })]
             };
             return h('svg', { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: "2.5", strokeLinecap: "round", strokeLinejoin: "round", className: className }, icons[name] || null);
         };
@@ -93,6 +88,7 @@
             const [showSuggestions, setShowSuggestions] = useState(false);
             const [suggestedClients, setSuggestedClients] = useState([]);
             const [isOffline, setIsOffline] = useState(!navigator.onLine);
+            const [notifications, setNotifications] = useState([]);
             
             const [editingClient, setEditingClient] = useState(null);
             const [clientEditForm, setClientEditForm] = useState({ nom: "", telephone: "", lieu: "" });
@@ -109,18 +105,30 @@
 
             const [depenseForm, setDepenseForm] = useState({ libelle: "", montant: "", categorie: "Stock" });
 
+            // Système de notification type Facebook
+            const notify = (title, message, type = "info") => {
+                const id = Date.now();
+                setNotifications(prev => [...prev, { id, title, message, type }]);
+                setTimeout(() => {
+                    setNotifications(prev => prev.filter(n => n.id !== id));
+                }, 4000);
+            };
+
             useEffect(() => {
-                const handleOnline = () => { setIsOffline(false); document.body.classList.remove('is-offline'); };
-                const handleOffline = () => { setIsOffline(true); document.body.classList.add('is-offline'); };
+                const handleOnline = () => { 
+                    setIsOffline(false); 
+                    notify("Connexion Rétablie", "Vos données sont en cours de synchronisation.", "success");
+                };
+                const handleOffline = () => { 
+                    setIsOffline(true); 
+                    notify("Mode Hors Ligne", "L'application fonctionne localement.", "warning");
+                };
                 window.addEventListener('online', handleOnline);
                 window.addEventListener('offline', handleOffline);
                 
-                if (!navigator.onLine) document.body.classList.add('is-offline');
-
                 const app = initializeApp(firebaseConfig);
                 const firestore = getFirestore(app);
                 
-                // Activation de la persistence Firestore stable pour le mode offline
                 enableIndexedDbPersistence(firestore).catch((err) => {
                     console.warn("La persistance Firestore a échoué:", err.code);
                 });
@@ -140,8 +148,16 @@
                 const cliRef = collection(db, 'artifacts', appId, 'public', 'data', 'clients');
 
                 const unsubLiv = onSnapshot(query(livRef, orderBy('timestamp', 'desc')), s => {
-                    setLivraisons(s.docs.map(d => ({id: d.id, ...d.data()})));
-                }, (err) => console.log("Erreur ou mode hors ligne", err));
+                    const data = s.docs.map(d => ({id: d.id, ...d.data()}));
+                    
+                    // Alertes au chargement
+                    const late = data.filter(l => l.datePlanif <= todayStr && l.statut !== 'Livré').length;
+                    if (late > 0 && livraisons.length === 0) {
+                        notify("Alertes Retards", `Vous avez ${late} livraisons en retard à traiter !`, "error");
+                    }
+                    
+                    setLivraisons(data);
+                });
                 
                 const unsubDep = onSnapshot(query(depRef, orderBy('timestamp', 'desc')), s => {
                     setDepenses(s.docs.map(d => ({id: d.id, ...d.data()})));
@@ -193,6 +209,8 @@
                         dateCreation: serverTimestamp()
                     });
                 }
+                
+                notify("Commande Enregistrée", `Vente pour ${orderForm.nom} ajoutée avec succès.`, "success");
                 setOrderForm({ nom: "", telephone: "", lieu: "", montant: "", avance: "", typePaiement: "Avance", datePlanif: todayStr });
                 setShowSuggestions(false);
             };
@@ -200,6 +218,7 @@
             const handleUpdateClient = async () => {
                 if(!editingClient) return;
                 await updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'clients', editingClient.id), { ...clientEditForm });
+                notify("Client Mis à jour", "Les informations du client ont été modifiées.", "success");
                 setEditingClient(null);
             };
 
@@ -211,6 +230,7 @@
                 link.href = URL.createObjectURL(blob);
                 link.download = `rasoa_export_${todayStr}.csv`;
                 link.click();
+                notify("Export Terminé", "Votre fichier CSV est prêt.", "info");
             };
 
             const filterCounts = useMemo(() => ({
@@ -231,15 +251,39 @@
 
             const formatDate = (s) => s ? s.split('-').reverse().join('/') : "";
 
-            if (!db) return h('div', { className: "h-screen flex items-center justify-center font-black animate-pulse text-indigo-600" }, "INITIALISATION...");
+            if (!db) return h('div', { className: "h-screen flex items-center justify-center font-black animate-pulse text-indigo-600" }, "RASOA PRO CHARGEMENT...");
 
             return h('div', { className: "min-h-screen pb-24" },
+                // Conteneur de Notifications Pop-up
+                h('div', { className: "fixed top-4 left-0 right-0 z-[1000] flex flex-col items-center gap-3 px-4 pointer-events-none" }, 
+                    notifications.map(n => h('div', { key: n.id, className: "pointer-events-auto" }, 
+                        h('div', { 
+                            className: `notification-popup w-full max-w-sm bg-white rounded-[2rem] shadow-2xl border-l-8 p-4 flex items-center gap-4 ${
+                                n.type === 'success' ? 'border-emerald-500' : 
+                                n.type === 'error' ? 'border-rose-500' : 
+                                n.type === 'warning' ? 'border-amber-500' : 'border-indigo-500'
+                            }` 
+                        }, [
+                            h('div', { className: `w-12 h-12 rounded-full flex items-center justify-center shrink-0 ${
+                                n.type === 'success' ? 'bg-emerald-100 text-emerald-600' : 
+                                n.type === 'error' ? 'bg-rose-100 text-rose-600' : 
+                                n.type === 'warning' ? 'bg-amber-100 text-amber-600' : 'bg-indigo-100 text-indigo-600'
+                            }` }, h(Icon, { name: n.type === 'success' ? 'check' : n.type === 'error' ? 'bell' : 'info', size: 22 })),
+                            h('div', { className: "flex-1 overflow-hidden" }, [
+                                h('h4', { className: "font-black text-[13px] uppercase tracking-tight" }, n.title),
+                                h('p', { className: "text-slate-500 text-[11px] font-semibold truncate" }, n.message)
+                            ]),
+                            h('button', { onClick: () => setNotifications(prev => prev.filter(notif => notif.id !== n.id)), className: "p-2 text-slate-300" }, h(Icon, { name: "x", size: 16 }))
+                        ])
+                    ))
+                ),
+
                 h('header', { className: "bg-white border-b px-6 py-4 flex items-center justify-between sticky top-0 z-[100] shadow-sm" },
                     h('div', { className: "flex items-center gap-3" },
                         h('div', { className: "w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-black italic shadow-lg" }, "R"),
                         h('div', {}, [
                             h('h1', { className: "font-black text-xl italic leading-none" }, "RASOA PRO"),
-                            h('p', { className: "text-[9px] font-black text-slate-400 uppercase tracking-widest" }, "Version Stable v10")
+                            h('p', { className: "text-[9px] font-black text-slate-400 uppercase tracking-widest" }, isOffline ? "MODE HORS-LIGNE" : "DASHBOARD CONNECTÉ")
                         ])
                     ),
                     h('div', { className: "text-right" },
@@ -309,14 +353,22 @@
                                                 h('div', {key:'l', className:"flex items-center gap-1 text-slate-400 mb-1"}, [h(Icon, {name:"mapPin", size:10}), h('span', {className:"text-[10px] font-bold"}, l.lieu || "Lieu non défini")]),
                                                 h('div', {key:'dt', className:"flex items-center gap-1 text-indigo-400 font-black text-[9px] uppercase"}, [h(Icon, {name:"calendar", size:10}), formatDate(l.datePlanif)])
                                             ]),
-                                            h('button', { key:'del', onClick: async () => { if (window.confirm("Supprimer ?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', l.id)); }, className: "p-2 text-slate-200 hover:text-rose-500" }, h(Icon, { name: "trash", size: 14 }))
+                                            h('button', { key:'del', onClick: async () => { 
+                                                if (window.confirm("Supprimer ?")) {
+                                                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', l.id));
+                                                    notify("Suppression", "Commande supprimée définitivement.", "warning");
+                                                }
+                                            }, className: "p-2 text-slate-200 hover:text-rose-500" }, h(Icon, { name: "trash", size: 14 }))
                                         ]),
                                         h('div', { key: 's', className: "flex justify-between border-t border-slate-50 mt-4 pt-4" }, [
-                                            h('div', { key: 't' }, [h('p', {className:"text-[8px] font-black text-slate-400 uppercase"}, "Montant"), h('p', {className:"font-black"}, `${(Number(l.montant)||0).toLocaleString()} Ar`)]),
-                                            h('div', { key: 'r' }, [h('p', {className:"text-[8px] font-black text-rose-400 uppercase"}, "Reste"), h('p', {className:"font-black text-rose-600"}, `${((Number(l.montant)||0) - (Number(l.avance)||0)).toLocaleString()} Ar`)])
+                                            h('div', { key: 't' }, [h('p', {className:"text-[8px] font-black text-slate-400 uppercase"}, "Montant"), h('p', {className:"font-black text-sm"}, `${(Number(l.montant)||0).toLocaleString()} Ar`)]),
+                                            h('div', { key: 'r' }, [h('p', {className:"text-[8px] font-black text-rose-400 uppercase"}, "Reste"), h('p', {className:"font-black text-rose-600 text-sm"}, `${((Number(l.montant)||0) - (Number(l.avance)||0)).toLocaleString()} Ar`)])
                                         ]),
                                         l.statut !== "Livré" ? 
-                                            h('button', { key: 'b', onClick: () => updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', l.id), { statut: 'Livré', avance: l.montant }), className: "w-full mt-4 bg-emerald-500 text-white py-3 rounded-2xl font-black uppercase text-[10px]" }, "Marquer Livré ✓") :
+                                            h('button', { key: 'b', onClick: () => {
+                                                updateDoc(doc(db, 'artifacts', appId, 'public', 'data', 'livraisons', l.id), { statut: 'Livré', avance: l.montant });
+                                                notify("Livraison Validée", `Paiement complet reçu pour ${l.nom}`, "success");
+                                            }, className: "w-full mt-4 bg-emerald-500 text-white py-3 rounded-2xl font-black uppercase text-[10px]" }, "Marquer Livré ✓") :
                                             h('div', { key: 'lv', className: "w-full mt-4 bg-emerald-50 text-emerald-600 py-3 rounded-2xl font-black uppercase text-[10px] text-center" }, "Livraison Terminée")
                                     ]))
                                 )
@@ -341,7 +393,12 @@
                                 ]),
                                 h('div', { className: "w-full flex gap-2" }, [
                                     h('button', { onClick: () => { setOrderForm({...orderForm, nom: c.nom, telephone: c.telephone, lieu: c.lieu || ""}); setActiveTab('commandes'); }, className: "flex-1 bg-slate-900 text-white py-3 rounded-2xl font-black uppercase text-[9px]" }, "Nouvelle Commande"),
-                                    h('button', { onClick: async () => { if(window.confirm("Supprimer le client ?")) await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'clients', c.id)); }, className: "p-3 bg-slate-50 text-rose-500 rounded-2xl" }, h(Icon, {name:"trash", size:14}))
+                                    h('button', { onClick: async () => { 
+                                        if(window.confirm("Supprimer le client ?")) {
+                                            await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'clients', c.id));
+                                            notify("Suppression Client", `${c.nom} a été supprimé.`, "warning");
+                                        }
+                                    }, className: "p-3 bg-slate-50 text-rose-500 rounded-2xl" }, h(Icon, {name:"trash", size:14}))
                                 ])
                             ]))
                         )
@@ -357,14 +414,22 @@
                                     h('select', { value: depenseForm.categorie, onChange: e => setDepenseForm({...depenseForm, categorie: e.target.value}), className: "w-full p-4 bg-slate-50 rounded-2xl font-bold border outline-none" }, 
                                         ['Stock', 'Loyer', 'Salaires', 'Transport', 'Marketing', 'Autre'].map(cat => h('option', { key: cat, value: cat }, cat))
                                     ),
-                                    h('button', { onClick: async () => { if(!depenseForm.libelle || !depenseForm.montant) return; await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'depenses'), {...depenseForm, montant:Number(depenseForm.montant), timestamp:serverTimestamp()}); setDepenseForm({libelle:"", montant:"", categorie:"Stock"}); }, className: "w-full bg-rose-500 text-white py-5 rounded-3xl font-black uppercase text-[11px] shadow-lg" }, "Valider la Sortie")
+                                    h('button', { onClick: async () => { 
+                                        if(!depenseForm.libelle || !depenseForm.montant) return; 
+                                        await addDoc(collection(db, 'artifacts', appId, 'public', 'data', 'depenses'), {...depenseForm, montant:Number(depenseForm.montant), timestamp:serverTimestamp()}); 
+                                        notify("Dépense Enregistrée", `-${depenseForm.montant} Ar retiré pour ${depenseForm.libelle}`, "warning");
+                                        setDepenseForm({libelle:"", montant:"", categorie:"Stock"}); 
+                                    }, className: "w-full bg-rose-500 text-white py-5 rounded-3xl font-black uppercase text-[11px] shadow-lg" }, "Valider la Sortie")
                                 ])
                             ])
                         ),
                         h('div', { className: "lg:col-span-2 space-y-4" }, 
                             depenses.map(d => h('div', { key: d.id, className: "bg-white p-6 rounded-[2rem] border shadow-sm flex items-center justify-between" }, [
-                                h('div', {}, [h('p', {className:"font-black"}, d.libelle), h('span', {className:"text-[9px] font-black uppercase bg-slate-100 px-2 py-1 rounded text-slate-500"}, d.categorie)]),
-                                h('div', {className:"flex items-center gap-4"}, [h('p', {className:"font-black text-rose-600"}, `-${(Number(d.montant)).toLocaleString()} Ar`), h('button', {onClick:()=>deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'depenses', d.id)), className:"text-slate-200 hover:text-rose-500"}, h(Icon, {name:"trash", size:14}))])
+                                h('div', {}, [h('p', {className:"font-black text-sm"}, d.libelle), h('span', {className:"text-[9px] font-black uppercase bg-slate-100 px-2 py-1 rounded text-slate-500"}, d.categorie)]),
+                                h('div', {className:"flex items-center gap-4"}, [h('p', {className:"font-black text-rose-600"}, `-${(Number(d.montant)).toLocaleString()} Ar`), h('button', {onClick:async () => {
+                                    await deleteDoc(doc(db, 'artifacts', appId, 'public', 'data', 'depenses', d.id));
+                                    notify("Annulation", "Dépense supprimée de la caisse.", "info");
+                                }, className:"text-slate-200 hover:text-rose-500"}, h(Icon, {name:"trash", size:14}))])
                             ]))
                         )
                     ]),
@@ -374,10 +439,10 @@
                             h('button', { onClick: downloadCSV, className: "flex items-center justify-center gap-3 bg-white p-6 rounded-3xl border border-slate-200 shadow-sm font-black uppercase text-[10px] text-emerald-600" }, [h(Icon, {name: "download", size: 18}), "Télécharger CSV"])
                         ]),
                         h('div', { className: "grid grid-cols-1 md:grid-cols-4 gap-6" }, [
-                            h('div', { className: "bg-emerald-500 p-8 rounded-[3rem] text-white shadow-xl" }, [h('p', {className:"text-[10px] font-black uppercase opacity-70"}, "Recettes Réelles"), h('p', {className:"text-2xl font-black"}, `${stats.caReel.toLocaleString()} Ar`)]),
-                            h('div', { className: "bg-indigo-600 p-8 rounded-[3rem] text-white shadow-xl" }, [h('p', {className:"text-[10px] font-black uppercase opacity-70"}, "Objectif Chiffre"), h('p', {className:"text-2xl font-black"}, `${stats.caPrevu.toLocaleString()} Ar`)]),
-                            h('div', { className: "bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm" }, [h('p', {className:"text-[10px] font-black uppercase text-slate-400"}, "Total Dépenses"), h('p', {className:"text-2xl font-black text-rose-500"}, `${stats.totalDepenses.toLocaleString()} Ar`)]),
-                            h('div', { className: "bg-slate-900 p-8 rounded-[3rem] text-white shadow-xl" }, [h('p', {className:"text-[10px] font-black uppercase opacity-70"}, "Profit Net"), h('p', {className:"text-2xl font-black"}, `${stats.benefice.toLocaleString()} Ar`)])
+                            h('div', { className: "bg-emerald-500 p-8 rounded-[3rem] text-white shadow-xl" }, [h('p', {className:"text-[10px] font-black uppercase opacity-70"}, "Recettes Réelles"), h('p', {className:"text-2xl font-black leading-tight"}, `${stats.caReel.toLocaleString()} Ar`)]),
+                            h('div', { className: "bg-indigo-600 p-8 rounded-[3rem] text-white shadow-xl" }, [h('p', {className:"text-[10px] font-black uppercase opacity-70"}, "Objectif Chiffre"), h('p', {className:"text-2xl font-black leading-tight"}, `${stats.caPrevu.toLocaleString()} Ar`)]),
+                            h('div', { className: "bg-white p-8 rounded-[3rem] border border-slate-100 shadow-sm" }, [h('p', {className:"text-[10px] font-black uppercase text-slate-400"}, "Total Dépenses"), h('p', {className:"text-2xl font-black text-rose-500 leading-tight"}, `${stats.totalDepenses.toLocaleString()} Ar`)]),
+                            h('div', { className: "bg-slate-900 p-8 rounded-[3rem] text-white shadow-xl" }, [h('p', {className:"text-[10px] font-black uppercase opacity-70"}, "Profit Net"), h('p', {className:"text-2xl font-black leading-tight"}, `${stats.benefice.toLocaleString()} Ar`)])
                         ])
                     ])
                 ),
